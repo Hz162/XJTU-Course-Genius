@@ -1,0 +1,42 @@
+# Word
+*.doc
+*.docx
+*.docm
+*.dot
+*.dotx
+*.dotm
+
+# Excel
+*.xls
+*.xlsx
+*.xlsm
+*.xlsb
+*.xltx
+*.xltm
+
+# PowerPoint
+*.ppt
+*.pptx
+*.pptm
+*.potx
+*.ppsx
+
+# 其他（可选）
+*.one
+*.onepkg
+*.onetoc2
+*.mdb
+*.accdb
+*.vsd
+*.vsdx
+*.vsdm
+*.pub
+*.mpp
+
+# Office 临时/锁文件与通用临时
+~$*
+*.tmp
+
+# Windows 噪声（可选）
+Thumbs.db
+Desktop.ini
