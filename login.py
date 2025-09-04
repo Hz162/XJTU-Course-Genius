@@ -776,7 +776,7 @@ def qdlc():
     i=list[form1.comboBox.currentIndex()]
     xklcdm=i['code']
     if i['canSelect']=="0":
-        QtWidgets.QMessageBox.warning(window1, "警告", "请选择可选轮次！")
+        QtWidgets.QMessageBox.warning(window1, "警告", "请选择正确的可选轮次！")
         return
     jrlc()
     window1.close()
