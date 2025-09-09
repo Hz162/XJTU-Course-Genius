@@ -1,2 +1,0 @@
-activate xjtu
-pyinstaller login.py --noconsole --onedir --add-data "logo.png:." --add-data "iife.min.js:." --icon=logo.png

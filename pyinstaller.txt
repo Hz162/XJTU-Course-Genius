@@ -1,0 +1,3 @@
+activate xjtu
+cd /d D:\qk3
+pyinstaller login.py --noconsole --onedir --add-data "logo.png:." --add-data "iife.min.js:." --hidden-import lxml.etree --hidden-import lxml._elementpath --hidden-import cryptography.hazmat.bindings._rust --collect-submodules lxml --icon=logo.png

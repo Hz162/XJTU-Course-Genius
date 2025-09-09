@@ -468,7 +468,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "XJTU选课助手"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "XJTU Course Genius"))
         self.label.setText(_translate("MainWindow", "选择课程"))
         self.pushButton_4.setText(_translate("MainWindow", "删除"))
         self.label_2.setText(_translate("MainWindow", "添加冲突课程（课程班号）"))
@@ -1706,7 +1706,7 @@ icon = QtGui.QIcon(icon_path)
 window.setWindowIcon(icon)
 window1.setWindowIcon(icon)
 mainwin.setWindowIcon(icon)
-mainwin.setWindowTitle("XJTU选课助手")
+mainwin.setWindowTitle("XJTU Course Genius")
 window.setWindowTitle("登录")
 window1.setWindowTitle("选择轮次")
 flags = QtCore.Qt.Window | QtCore.Qt.CustomizeWindowHint | QtCore.Qt.WindowCloseButtonHint
