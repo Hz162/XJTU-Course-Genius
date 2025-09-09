@@ -82,6 +82,7 @@ res1=[]
 res=[]
 flags=None
 flag=True
+flags1=None
 current_campus=None
 campus_list=[]
 PUB_PEM = b""
@@ -502,7 +503,6 @@ class mainw(QMainWindow):
         self.couresche.start()
     def starts(self):
         self.startss=startss()
-
 class courseResult(QThread):
     def __init__(self) :
         super().__init__()
@@ -544,23 +544,28 @@ class startss(QThread):
         self.mutex=QMutex()
         self.condition=QWaitCondition()
         self.is_paused=False
+        self._stopped = False
     def run(self):
-        global flags
+        global flags1
         global res1
         global course
         global flag
-        flags=[0]*len(course)
-        while True:
+        flags1=[0]*len(course)
+        while not self._stopped:
             #not flag
             login3_sync_qthread()
+            if self._stopped:
+                break
             self.que.emit()
             self.pause()
             self.check_mutex()
             for i in range(4000):
+                if self._stopped:
+                    break
                 sleep(0.1)
                 flag1=True
                 for j in range(len(course)):
-                    if flags[j]==0:
+                    if flags1[j]==0:
                         flag1=False
                         if capacity(course[j][0]):
                             for k in delcourses[j]:
@@ -570,7 +575,11 @@ class startss(QThread):
                     flag=True
                     self.bu.emit()                
             sleep(0.1)
-        
+    def stop(self):
+        """请求线程结束"""
+        self._stopped = True
+        # 解除暂停状态防止卡在 wait
+        self.resume()    
     def pause(self):
         self.mutex.lock()
         self.is_paused=True
@@ -582,7 +591,7 @@ class startss(QThread):
         self.mutex.unlock()
     def check_mutex(self):
         self.mutex.lock()
-        while self.is_paused:
+        while self.is_paused and not self._stopped:
             self.condition.wait(self.mutex)
         self.mutex.unlock()
         
@@ -857,10 +866,10 @@ def savee():
 def readconfig():
     global course
     global delcourses
-    f=open('config.ini','r',encoding='utf-8')
-    con=f.read()
-    f.close()
     try:
+        f=open('config.ini','r',encoding='utf-8')
+        con=f.read()
+        f.close()
         conf=eval(con)
         course=conf["course"]
         delcourses=conf["delcourses"]
@@ -936,7 +945,9 @@ def quee():
     mainwin.startss.resume()
 def butt():
     form2.pushButton_6.setText("开始")
-    mainwin.startss.terminate()
+    if mainwin.startss and mainwin.startss.isRunning():
+        mainwin.startss.stop()
+        mainwin.startss.wait()
     login3_sync_qthread()
     quee()
 
@@ -1546,7 +1557,9 @@ def starts():
         form2.pushButton_6.setText("停止")
     else:
         form2.pushButton_6.setText("开始")
-        mainwin.startss.terminate()
+        if mainwin.startss and mainwin.startss.isRunning():
+            mainwin.startss.stop()
+            mainwin.startss.wait()   # 等待退出
         flag=True
         login3_sync_qthread()
         quee()
