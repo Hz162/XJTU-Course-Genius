@@ -555,20 +555,24 @@ class startss(QThread):
             #not flag
             login3_sync_qthread()
             if self._stopped:
-                break
+                return
             self.que.emit()
             self.pause()
             self.check_mutex()
             for i in range(4000):
                 if self._stopped:
-                    break
+                    return
                 sleep(0.1)
                 flag1=True
                 for j in range(len(course)):
+                    if self._stopped:
+                        return
                     if flags1[j]==0:
                         flag1=False
                         if capacity(course[j][0]):
                             for k in delcourses[j]:
+                                if self._stopped:
+                                    return
                                 deleteVolunteer(k)
                             volunteer(course[j][0],course[j][4],course[j][5])
                 if flag1:
@@ -603,10 +607,24 @@ class LoginThread(QThread):
         
 class Login3Thread(QThread):
     finished = pyqtSignal(object)  # 登录完成信号，传递结果
-
+    _mutex = QMutex()          # 类级互斥锁（所有实例共享）
+    _running = False           # 运行标记
+    def __init__(self):
+        super().__init__()
+        self.result = None  # 保存本次登录结果
     def run(self):
-        result = login3()
-        self.finished.emit(result)        
+        if not Login3Thread._mutex.tryLock():
+            # 已有登录在跑（按你之前逻辑直接返回标记）
+            self.result = "login3_in_progress"
+            self.finished.emit(self.result)
+            return
+        Login3Thread._running = True
+        try:
+            self.result = login3()
+            self.finished.emit(self.result)
+        finally:
+            Login3Thread._running = False
+            Login3Thread._mutex.unlock()        
 
 
 def see():
@@ -828,7 +846,7 @@ def xklc():
 
 
 login_thread = None
-
+active_login3_thread = None  # 记录当前正在运行的 Login3Thread
 
 def login_botton_clicked():
     global account, pwd, login_thread
@@ -920,6 +938,7 @@ def pz():
 
 def quee():
     global course
+    global flags1
     mainwin.startss.pause()
     mainwin.che()
     while not mainwin.couresche.stoprun:
@@ -937,10 +956,10 @@ def quee():
         form2.tableWidget.setItem(j,2,QTableWidgetItem(course[j][2]))
         form2.tableWidget.setItem(j,3,QTableWidgetItem(course[j][3]))
         if course[j][0] in cour:
-            flags[j]=1
+            flags1[j]=1
             form2.tableWidget.setItem(j,4,QTableWidgetItem("✓"))
         else:
-            flags[j]=0
+            flags1[j]=0
             form2.tableWidget.setItem(j,4,QTableWidgetItem("×"))
     mainwin.startss.resume()
 def butt():
@@ -1549,18 +1568,20 @@ def starts():
     global flags
     global flag
     if flag:
+        form2.pushButton_6.setText("停止")
         mainwin.starts()
         mainwin.startss.que.connect(quee)
         mainwin.startss.bu.connect(butt)
         flag=False
         mainwin.startss.start()
-        form2.pushButton_6.setText("停止")
     else:
         form2.pushButton_6.setText("开始")
+        form2.pushButton_6.setEnabled(False)
         if mainwin.startss and mainwin.startss.isRunning():
             mainwin.startss.stop()
             mainwin.startss.wait()   # 等待退出
         flag=True
+        form2.pushButton_6.setEnabled(True)
         login3_sync_qthread()
         quee()
 
@@ -1571,14 +1592,17 @@ def login3():
     global account, pwd, FP_VISITOR_ID, fpVisitorId
     global PUB_PEM
     url1 = 'https://xkfw.xjtu.edu.cn'
+    #清空session
+    session.cookies.clear()
+    session.headers.clear()
     resp1 = session.get(url1, headers=headers)
     resp1.encoding = resp1.apparent_encoding  # 便于解析
 
     # 解析 execution（XPath）
     tree = html.fromstring(resp1.text)
-
     # 1) 你的 XPath：//*[@id="fm1"]/input[8]/@value
     vals = tree.xpath('//*[@id="fm1"]/input[8]/@value')
+    #print(resp1.text)
     #resp1的url和数据写入
     url3 = resp1.url
     execution = vals[0]
@@ -1631,21 +1655,37 @@ def login3():
 
 def login3_sync_qthread():
     """
-    用QThread异步执行login3，并同步等待结果，不阻塞UI事件循环。
+    同步登录：
+    - 若当前无登录线程：启动新的并等待完成
+    - 若已有线程在跑：等待其结束（最多 timeout_ms）
+    - 返回该次登录结果
+    不再使用 terminate，避免无响应和资源未释放。
     """
+    global active_login3_thread
+    timeout_ms = 10000  # 最多等 10 秒
+
+    # 若已有线程在运行，等待它结束
+    if active_login3_thread and active_login3_thread.isRunning():
+        finished = active_login3_thread.wait(timeout_ms)
+        # 等到了就返回其结果
+        if finished:
+            return getattr(active_login3_thread, "result", None)
+        # 超时（极少数情况下卡死），返回错误提示
+        return "login_timeout"
+
+    # 没有线程 -> 启动新的
+    t = Login3Thread()
+    active_login3_thread = t
+
     loop = QEventLoop()
-    result_container = {}
-
-    def on_finished(result):
-        result_container['result'] = result
+    def _done(_):
         loop.quit()
-
-    thread = Login3Thread()
-    thread.finished.connect(on_finished)
-    thread.start()
-    loop.exec_()  # 等待线程结束
-    thread.wait()
-    return result_container['result']
+    t.finished.connect(_done)
+    t.start()
+    loop.exec_()             # 阻塞当前调用线程（不阻塞 UI 主线程以外的线程）
+    t.wait()                 # 保险再等一次
+    return getattr(t, "result", None)
+    
 
 
 start_fp_preloader()
