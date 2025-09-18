@@ -8,3 +8,4 @@
 - 改变登录方式，selenium仅用来获取fingerprint，其他均用requests完成
 - 支持多轮次选课
 - 支持添加冲突课
+- 写入mfa_Sate,未适配mfa验证操作
