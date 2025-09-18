@@ -760,13 +760,32 @@ def login():
     pem_text = resp2.text.strip()
     PUB_PEM = pem_text.encode('utf-8')
     fpVisitorId = (FP_EVENT.wait(10) and FP_VISITOR_ID) or (lambda: (lambda v: v if v else "")(getfpVisitorId()))()
+    
+    
+    url_mfa_detect = "https://login.xjtu.edu.cn/cas/mfa/detect"
+    data_mfa_detect = {
+        "username": str(account),
+        "password": encrypt_jsencrypt(str(pwd)),
+        "fpVisitorId": str(fpVisitorId)
+    }
+    resp_mfa_detect = session.post(url_mfa_detect, headers=headers, data=data_mfa_detect)
+    
+    try:
+        mfa_info = resp_mfa_detect.json()
+        if mfa_info.get("code") == 0:
+            #获取mfastate
+            mfa_state = mfa_info.get("data", {}).get("state", "")
+    except Exception as e:
+        print(f"Error parsing MFA response: {e}")
+    
+    mfa_state = mfa_state or ""
     data = {
         "username" : str(account),
         "password" : encrypt_jsencrypt(str(pwd)),
         "captcha"  : "",
         "currentMenu" : "1",
         "failN" : "0",
-        "mfaState" : "",
+        "mfaState" : mfa_state,
         "execution" : execution,
         "_eventId" : "submit",
         "geolocation" : "",
@@ -1612,13 +1631,31 @@ def login3():
     pem_text = resp2.text.strip()
     PUB_PEM = pem_text.encode('utf-8')
     fpVisitorId = (FP_EVENT.wait(10) and FP_VISITOR_ID) or (lambda: (lambda v: v if v else "")(getfpVisitorId()))()
+    
+    
+    url_mfa_detect = "https://login.xjtu.edu.cn/cas/mfa/detect"
+    data_mfa_detect = {
+        "username": str(account),
+        "password": encrypt_jsencrypt(str(pwd)),
+        "fpVisitorId": str(fpVisitorId)
+    }
+    resp_mfa_detect = session.post(url_mfa_detect, headers=headers, data=data_mfa_detect)
+    
+    try:
+        mfa_info = resp_mfa_detect.json()
+        if mfa_info.get("code") == 0:
+            #获取mfastate
+            mfa_state = mfa_info.get("data", {}).get("state", "")
+    except Exception as e:
+        print(f"Error parsing MFA response: {e}")
+    mfa_state = mfa_state or ""
     data = {
         "username" : str(account),
         "password" : encrypt_jsencrypt(str(pwd)),
         "captcha"  : "",
         "currentMenu" : "1",
         "failN" : "0",
-        "mfaState" : "",
+        "mfaState" : mfa_state,
         "execution" : execution,
         "_eventId" : "submit",
         "geolocation" : "",
