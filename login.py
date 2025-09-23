@@ -11,7 +11,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from PyQt5 import QtGui, QtWidgets, QtCore
 from PyQt5.QtWidgets import QApplication, QMainWindow, QCheckBox, QTableWidgetItem
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QMutex, QWaitCondition, QEventLoop
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QMutex, QWaitCondition, QEventLoop, QTimer
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QMessageBox, QInputDialog, QLineEdit, QDialog, QLabel, QVBoxLayout, QPushButton, QComboBox, QHBoxLayout
 import requests
 from datetime import datetime
 from time import sleep
@@ -503,6 +505,230 @@ class mainw(QMainWindow):
         self.couresche.start()
     def starts(self):
         self.startss=startss()
+    
+    @QtCore.pyqtSlot(object, str, result=object)
+    def run_mfa(self, session, state):
+        """在主线程创建并执行 MFA 对话框，返回 {'ok': bool, 'session': requests.Session 或 None}"""
+        dlg = MFAWindow(session, "https://login.xjtu.edu.cn", state, parent=self)
+        ok = (dlg.exec() == QtWidgets.QDialog.Accepted)  # 明确 Accepted/Rejected
+        return {"ok": bool(ok), "session": (dlg.verified_session if ok else None)}
+
+class MFAHandler:
+    def __init__(self, session, base_url, mfa_type, state):
+        self.session = session
+        self.base_url = base_url
+        self.mfa_type = mfa_type
+        self.state = state
+        self.attestServerUrl = None
+        self.gid = None
+        self.securePhone = None
+        self.secureEmail = None
+
+    def init_guard(self):
+        url = f"{self.base_url}/cas/mfa/initByType/{self.mfa_type}?state={self.state}"
+        r = self.session.get(url).json()
+        if r and r.get("code") == 0:
+            data = r["data"]
+            self.attestServerUrl = data.get("attestServerUrl")
+            self.gid = data.get("gid")
+            if self.mfa_type == "securephone":
+                self.securePhone = data.get("securePhone")
+            elif self.mfa_type == "secureemail":
+                self.secureEmail = data.get("secureEmail")
+            return True
+        return False
+
+    def send_code(self):
+        url = f"{self.attestServerUrl}/api/guard/{self.mfa_type}/send"
+        postdata = {"gid": self.gid}
+        r = self.session.post(url, json=postdata).json()
+        try:
+            r = self.session.post(url, json=postdata)
+            j = r.json()
+        except Exception:
+            j = {"code": -1, "msg": "network error"}
+        return j  # 返回完整响应，供上层判断
+
+    def validate_code(self, code):
+        url = f"{self.attestServerUrl}/api/guard/{self.mfa_type}/valid"
+        postdata = {"gid": self.gid, "code": code}
+        r = self.session.post(url, json=postdata).json()
+        if r and r.get("code") == 0:
+            return r["data"].get("status") == 2
+        return False
+
+
+class MFAWindow(QDialog):
+    def __init__(self, session, base_url, state, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("MFA")
+        icon_path = resource_path("logo.png")
+        icon = QtGui.QIcon(icon_path)
+        self.setWindowIcon(icon)  # 新增：设置对话框图标
+        self.setWindowFlags(
+            self.windowFlags()
+            & ~Qt.WindowContextHelpButtonHint  # 去掉 ❓ 帮助按钮
+        )
+        self.resize(350, 200)
+        self.session = session
+        self.base_url = base_url
+        self.state = state
+        self.mfa_handler = None
+        self.verified = False  # 验证标记
+        self.verified_session = None  # 验证通过后保存 session
+
+        # 倒计时
+        self.countdown = 60
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_countdown)
+
+        layout = QVBoxLayout()
+
+        # 验证方式选择
+        self.method_combo = QComboBox()
+        self.method_combo.addItems(["手机短信", "邮箱验证"])
+        layout.addWidget(QLabel("请选择验证方式:"))
+        layout.addWidget(self.method_combo)
+
+        # 信息显示
+        self.info_label = QLabel("请先选择验证方式并发送验证码")
+        layout.addWidget(self.info_label)
+
+        # 输入验证码
+        self.code_input = QLineEdit()
+        self.code_input.setPlaceholderText("输入验证码")
+        layout.addWidget(self.code_input)
+
+        # 按钮
+        self.send_button = QPushButton("获取验证码")
+        self.verify_button = QPushButton("验证")
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.send_button)
+        button_layout.addWidget(self.verify_button)
+        layout.addLayout(button_layout)
+
+        self.setLayout(layout)
+
+        # 信号绑定
+        self.send_button.clicked.connect(self.send_code)
+        self.verify_button.clicked.connect(self.verify_code)
+        
+        # 样式统一 Fluent 风格
+        self.setStyleSheet("""
+            QDialog {
+                background: #f5f7fa;
+            }
+            QLabel {
+                font-family: '微软雅黑';
+                font-size: 20px;
+            }
+            QLineEdit {
+                border: 1px solid #bfcbd9;
+                border-radius: 8px;
+                padding: 6px 10px;
+                font-size: 18px;
+                background: #fff;
+            }
+            QComboBox {
+                border: 1px solid #bfcbd9;
+                border-radius: 8px;
+                padding: 6px 10px;
+                font-size: 18px;
+                background: #fff;
+            }
+            QPushButton {
+                background-color: #409eff;
+                color: white;
+                border-radius: 8px;
+                font-size: 20px;
+                padding: 10px 0;
+            }
+            QPushButton:hover {
+                background-color: #66b1ff;
+            }
+        """)
+
+        # 设置字体
+        font_label = QtGui.QFont("微软雅黑", 20)
+        self.info_label.setFont(font_label)
+        self.method_combo.setFont(QtGui.QFont("微软雅黑", 18))
+        self.code_input.setFont(QtGui.QFont("微软雅黑", 18))
+        self.send_button.setFont(QtGui.QFont("微软雅黑", 20))
+        self.verify_button.setFont(QtGui.QFont("微软雅黑", 20))
+
+    def send_code(self):
+        method = self.method_combo.currentText()
+        mfa_type = "securephone" if method == "手机短信" else "secureemail"
+        self.mfa_handler = MFAHandler(self.session, self.base_url, mfa_type, self.state)
+
+        if not self.mfa_handler.init_guard():
+            QMessageBox.warning(self, "错误", "初始化 MFA 失败")
+            return
+
+        resp = self.mfa_handler.send_code()
+        code = resp.get("code")
+        data = resp.get("data") or {}
+        result = data.get("result")
+
+        if code == 0:
+            # 已发送 -> 倒计时
+            target = self.mfa_handler.securePhone or self.mfa_handler.secureEmail
+            self.info_label.setText(f"验证码已发送到 {target}")
+            QMessageBox.information(self, "提示", "已发送")
+            self.start_countdown()
+            self.code_input.setFocus()
+        elif code is not None and code != 0 and result == "expired":
+            # 发送失败，已过期 -> 提示并 500ms 后重新 init_guard
+            QMessageBox.warning(self, "错误", "发送失败，已过期，请重新获取验证码")
+            QTimer.singleShot(500, lambda: self.mfa_handler and self.mfa_handler.init_guard())
+            self.info_label.setText("验证码已过期，请重新获取")
+        else:
+            # 其他失败
+            QMessageBox.warning(self, "错误", "发送失败")
+            self.info_label.setText("发送失败，请稍后重试")
+
+    def start_countdown(self):
+        self.countdown = 60
+        self.send_button.setEnabled(False)
+        self.send_button.setText(f"获取验证码({self.countdown})")
+        self.timer.start(1000)
+
+    def update_countdown(self):
+        self.countdown -= 1
+        if self.countdown > 0:
+            self.send_button.setText(f"获取验证码({self.countdown})")
+        else:
+            self.timer.stop()
+            self.send_button.setEnabled(True)
+            self.send_button.setText("获取验证码")
+
+    def verify_code(self):
+        code = self.code_input.text().strip()
+        if not code:
+            QMessageBox.warning(self, "错误", "请输入验证码")
+            return
+
+        if self.mfa_handler and self.mfa_handler.validate_code(code):
+            QMessageBox.information(self, "成功", "验证成功")
+            self.verified = True
+            self.verified_session = self.session  # 保存带认证 cookies 的 session
+            self.accept()
+        else:
+            QMessageBox.warning(self, "错误", "验证失败")
+
+    # 拦截关闭事件（不允许没验证成功时退出）
+    def closeEvent(self, event):
+        """
+        允许直接关闭：
+        - 未验证 -> Rejected（run_mfa 收到 ok=False）
+        - 已验证 -> Accepted（ok=True）
+        """
+        if not getattr(self, "verified", False):
+            self.setResult(QtWidgets.QDialog.Rejected)
+        else:
+            self.setResult(QtWidgets.QDialog.Accepted)
+        event.accept()
+
 class courseResult(QThread):
     def __init__(self) :
         super().__init__()
@@ -729,7 +955,6 @@ def _fp_worker():
 def start_fp_preloader():
     FP_EVENT.clear()
     threading.Thread(target=_fp_worker, name="fp_preloader", daemon=True).start()
-# ...existing code...
 
 
 def encrypt_jsencrypt(plaintext: str) -> str:
@@ -739,13 +964,17 @@ def encrypt_jsencrypt(plaintext: str) -> str:
 
 
 def login():
-    global service, options, browser, number, headers,current_url,token
+    global service, options, browser, number, headers,current_url,token, session
     global account, pwd, FP_VISITOR_ID, fpVisitorId
     global PUB_PEM
+    fpVisitorId = (FP_EVENT.wait(10) and FP_VISITOR_ID) or (lambda: (lambda v: v if v else "")(getfpVisitorId()))()
     url1 = 'https://xkfw.xjtu.edu.cn'
     resp1 = session.get(url1, headers=headers)
     resp1.encoding = resp1.apparent_encoding  # 便于解析
-
+    
+    # #写出html
+    # with open("login.html", "w", encoding="utf-8") as f:
+    #     f.write(resp1.text)
     # 解析 execution（XPath）
     tree = html.fromstring(resp1.text)
 
@@ -753,13 +982,13 @@ def login():
     vals = tree.xpath('//*[@id="fm1"]/input[8]/@value')
     #resp1的url和数据写入
     url3 = resp1.url
-    execution = vals[0]
+    execution = vals[0] if vals else ''
     url2 = 'https://login.xjtu.edu.cn/cas/jwt/publicKey'
     resp2 = session.get(url2, headers=headers)
     # print(resp2.text)
     pem_text = resp2.text.strip()
     PUB_PEM = pem_text.encode('utf-8')
-    fpVisitorId = (FP_EVENT.wait(10) and FP_VISITOR_ID) or (lambda: (lambda v: v if v else "")(getfpVisitorId()))()
+    
     
     
     url_mfa_detect = "https://login.xjtu.edu.cn/cas/mfa/detect"
@@ -775,8 +1004,27 @@ def login():
         if mfa_info.get("code") == 0:
             #获取mfastate
             mfa_state = mfa_info.get("data", {}).get("state", "")
+            mfa_need = mfa_info.get("data", {}).get("need", False)
     except Exception as e:
         print(f"Error parsing MFA response: {e}")
+    
+    trustAgent = ""
+    if mfa_need:
+        res = QtCore.QMetaObject.invokeMethod(
+            mainwin,
+            "run_mfa",
+            QtCore.Qt.BlockingQueuedConnection,
+            QtCore.Q_ARG(object, session),
+            QtCore.Q_ARG(str, mfa_state),
+        )
+        if not res or not res.get("ok"):
+            return "用户取消或验证失败"
+        try:
+            # 直接使用整个经过验证的 session
+            session = res["session"]
+        except Exception:
+            pass
+        trustAgent = "true"
     
     mfa_state = mfa_state or ""
     data = {
@@ -790,7 +1038,7 @@ def login():
         "_eventId" : "submit",
         "geolocation" : "",
         "fpVisitorId" : str(fpVisitorId),
-        "trustAgent" : "",
+        "trustAgent" : str(trustAgent),
         "submit1" : "Login1"
     }
     resp3 = session.post(url3, headers=headers, data=data, allow_redirects=False)
@@ -855,7 +1103,13 @@ def xklc():
     form1.setupUi(window1)
     url="https://xkfw.xjtu.edu.cn/xsxkapp/sys/xsxkapp/student/"+str(number)+".do?timestamp="+str(see())
     resp=session.get(url=url,headers=headers)
-    list=resp.json()['data']['electiveBatchList']
+    #json防报错
+    try:
+        list=resp.json()['data']['electiveBatchList']
+    except:
+        list=[]
+        QtWidgets.QMessageBox.warning(window1, "警告", "请在开放选课时使用！")
+        QtCore.QCoreApplication.instance().quit()
     for i in list:
         form1.comboBox.addItem(i['name'])
     form1.pushButton.clicked.connect(qdlc)
@@ -881,10 +1135,11 @@ def login_botton_clicked():
         
 def on_login_result(msg):
     QtWidgets.QMessageBox.information(window, "提示", msg + "！")
-    form.pushButton.setEnabled(True)
     if "成功" in msg:
         xklc()
         form.pushButton.setEnabled(False)  # 登录成功后禁用登录按钮
+    else:
+        form.pushButton.setEnabled(True)  # 登录失败后重新启用登录按钮
 
 
 
@@ -1610,76 +1865,7 @@ def login3():
     global service, options, browser, number, headers,current_url,token
     global account, pwd, FP_VISITOR_ID, fpVisitorId
     global PUB_PEM
-    url1 = 'https://xkfw.xjtu.edu.cn'
-    #清空session
-    session.cookies.clear()
-    session.headers.clear()
-    resp1 = session.get(url1, headers=headers)
-    resp1.encoding = resp1.apparent_encoding  # 便于解析
-
-    # 解析 execution（XPath）
-    tree = html.fromstring(resp1.text)
-    # 1) 你的 XPath：//*[@id="fm1"]/input[8]/@value
-    vals = tree.xpath('//*[@id="fm1"]/input[8]/@value')
-    #print(resp1.text)
-    #resp1的url和数据写入
-    url3 = resp1.url
-    execution = vals[0]
-    url2 = 'https://login.xjtu.edu.cn/cas/jwt/publicKey'
-    resp2 = session.get(url2, headers=headers)
-    # print(resp2.text)
-    pem_text = resp2.text.strip()
-    PUB_PEM = pem_text.encode('utf-8')
-    fpVisitorId = (FP_EVENT.wait(10) and FP_VISITOR_ID) or (lambda: (lambda v: v if v else "")(getfpVisitorId()))()
-    
-    
-    url_mfa_detect = "https://login.xjtu.edu.cn/cas/mfa/detect"
-    data_mfa_detect = {
-        "username": str(account),
-        "password": encrypt_jsencrypt(str(pwd)),
-        "fpVisitorId": str(fpVisitorId)
-    }
-    resp_mfa_detect = session.post(url_mfa_detect, headers=headers, data=data_mfa_detect)
-    
-    try:
-        mfa_info = resp_mfa_detect.json()
-        if mfa_info.get("code") == 0:
-            #获取mfastate
-            mfa_state = mfa_info.get("data", {}).get("state", "")
-    except Exception as e:
-        print(f"Error parsing MFA response: {e}")
-    mfa_state = mfa_state or ""
-    data = {
-        "username" : str(account),
-        "password" : encrypt_jsencrypt(str(pwd)),
-        "captcha"  : "",
-        "currentMenu" : "1",
-        "failN" : "0",
-        "mfaState" : mfa_state,
-        "execution" : execution,
-        "_eventId" : "submit",
-        "geolocation" : "",
-        "fpVisitorId" : str(fpVisitorId),
-        "trustAgent" : "",
-        "submit1" : "Login1"
-    }
-    resp3 = session.post(url3, headers=headers, data=data, allow_redirects=False)
-    url4 = resp3.headers["Location"]
-    resp4 = session.get(url4, headers=headers, allow_redirects=False)
-    url4 = resp4.headers["Location"]
-    resp4 = session.get(url4, headers=headers, allow_redirects=False)
-    url4 = resp4.headers["Location"]
-    resp4 = session.get(url4, headers=headers, allow_redirects=False)
-    url4 = resp4.headers["Location"]
-    number = url4.split("employeeNo=")[1].split("&")[0]
-    session.get(url4, headers=headers, allow_redirects=True)
-    headers = {
-        "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"
-    }
-    url="https://xkfw.xjtu.edu.cn/xsxkapp/sys/xsxkapp/student/register.do?number="+str(number)
-    resp=session.get(url=url,headers=headers)
-    token=resp.json()['data']['token']
-    headers['Token']=token
+    login()
     
     url="https://xkfw.xjtu.edu.cn/xsxkapp/sys/xsxkapp/student/xkxf.do"
     param={
