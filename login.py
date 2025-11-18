@@ -1043,26 +1043,26 @@ def login():
     }
     resp3 = session.post(url3, headers=headers, data=data, allow_redirects=False)
     # 401 return "登录失败"
-    if resp3.status_code != 302:
+    try:
+        url4 = resp3.headers["Location"]
+        resp4 = session.get(url4, headers=headers, allow_redirects=False)
+        url4 = resp4.headers["Location"]
+        resp4 = session.get(url4, headers=headers, allow_redirects=False)
+        url4 = resp4.headers["Location"]
+        resp4 = session.get(url4, headers=headers, allow_redirects=False)
+        url4 = resp4.headers["Location"]
+        number = url4.split("employeeNo=")[1].split("&")[0]
+        session.get(url4, headers=headers, allow_redirects=True)
+    
+    
+        url="https://xkfw.xjtu.edu.cn/xsxkapp/sys/xsxkapp/student/register.do?number="+str(number)
+        resp=session.get(url=url,headers=headers)
+        token=resp.json()['data']['token']
+        headers['Token']=token
+    
+        return resp.json()["msg"]
+    except Exception:
         return "登录失败"
-    url4 = resp3.headers["Location"]
-    resp4 = session.get(url4, headers=headers, allow_redirects=False)
-    url4 = resp4.headers["Location"]
-    resp4 = session.get(url4, headers=headers, allow_redirects=False)
-    url4 = resp4.headers["Location"]
-    resp4 = session.get(url4, headers=headers, allow_redirects=False)
-    url4 = resp4.headers["Location"]
-    number = url4.split("employeeNo=")[1].split("&")[0]
-    session.get(url4, headers=headers, allow_redirects=True)
-    
-    
-    url="https://xkfw.xjtu.edu.cn/xsxkapp/sys/xsxkapp/student/register.do?number="+str(number)
-    resp=session.get(url=url,headers=headers)
-    token=resp.json()['data']['token']
-    headers['Token']=token
-    
-    return resp.json()["msg"]
-
 
     
 def qdlc():
@@ -1128,6 +1128,7 @@ def login_botton_clicked():
     pwd = form.password.text().strip()  # 获取密码输入框的内容
     if not account or not pwd:
         QtWidgets.QMessageBox.warning(window, "警告", "账号或密码不能为空！")
+        form.pushButton.setEnabled(True)
         return
     login_thread = LoginThread()
     login_thread.login_result.connect(on_login_result)
