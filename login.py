@@ -40,8 +40,64 @@ for _k in ("HTTP_PROXY","HTTPS_PROXY","ALL_PROXY","http_proxy","https_proxy","al
     os.environ.pop(_k, None)
 os.environ.setdefault("NO_PROXY", "*")
 os.environ['WDM_CACHE_DIR'] = os.path.abspath('.')  # 当前文件夹
-driver_path = EdgeChromiumDriverManager(url="https://msedgedriver.microsoft.com/",
-            latest_release_url="https://msedgedriver.microsoft.com/LATEST_RELEASE").install()
+os.environ['WDM_SSL_VERIFY'] = '0'  # 忽略 SSL 证书验证
+
+# 提前初始化 QApplication 以便使用弹窗
+if QtWidgets.QApplication.instance() is None:
+    app = QtWidgets.QApplication(sys.argv)
+else:
+    app = QtWidgets.QApplication.instance()
+
+try:
+    import winreg
+    def get_edge_version():
+        # 尝试从注册表获取 Edge 版本 (HKCU 和 HKLM)
+        for hkey in [winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE]:
+            try:
+                key = winreg.OpenKey(hkey, r"Software\Microsoft\Edge\BLBeacon")
+                v, _ = winreg.QueryValueEx(key, "version")
+                if v: return v
+            except:
+                continue
+        return None
+
+    edge_ver = get_edge_version()
+    print(f"Detected Edge Version: {edge_ver}")
+
+    if edge_ver:
+        # 如果检测到版本，直接指定版本下载，避免 webdriver_manager 去请求不存在的 LATEST_RELEASE_XXX 文件
+        driver_path = EdgeChromiumDriverManager(
+            version=edge_ver,
+            url="https://npmmirror.com/mirrors/edgedriver",
+            latest_release_url="https://npmmirror.com/mirrors/edgedriver/LATEST_RELEASE"
+        ).install()
+    else:
+        # 如果没检测到版本，先尝试获取镜像源的最新版本号
+        try:
+            import requests
+            resp = requests.get("https://npmmirror.com/mirrors/edgedriver/LATEST_RELEASE", timeout=5)
+            latest_ver = resp.text.strip()
+            driver_path = EdgeChromiumDriverManager(
+                version=latest_ver,
+                url="https://npmmirror.com/mirrors/edgedriver",
+                latest_release_url="https://npmmirror.com/mirrors/edgedriver/LATEST_RELEASE"
+            ).install()
+        except:
+            # 最后的尝试
+            driver_path = EdgeChromiumDriverManager(
+                url="https://npmmirror.com/mirrors/edgedriver",
+                latest_release_url="https://npmmirror.com/mirrors/edgedriver/LATEST_RELEASE"
+            ).install()
+except Exception as e:
+    QtWidgets.QMessageBox.warning(None, "驱动下载失败", f"自动下载驱动失败: {e}\n将尝试使用本地 msedgedriver.exe")
+    driver_path = "msedgedriver.exe"
+    if not os.path.exists(driver_path):
+        QtWidgets.QMessageBox.critical(None, "严重错误", 
+            "无法下载驱动且未找到本地 msedgedriver.exe！\n"
+            "请手动下载对应版本的 msedgedriver.exe 并放到程序根目录。\n"
+            "下载地址: https://npmmirror.com/mirrors/edgedriver/")
+        sys.exit(1)
+
 service = EdgeService(driver_path)
 
 session = requests.Session()
@@ -506,12 +562,13 @@ class mainw(QMainWindow):
     def starts(self):
         self.startss=startss()
     
-    @QtCore.pyqtSlot(object, str, result=object)
-    def run_mfa(self, session, state):
-        """在主线程创建并执行 MFA 对话框，返回 {'ok': bool, 'session': requests.Session 或 None}"""
+    @QtCore.pyqtSlot(object, str, dict)
+    def run_mfa(self, session, state, result_container):
+        """在主线程创建并执行 MFA 对话框，将结果写入 result_container"""
         dlg = MFAWindow(session, "https://login.xjtu.edu.cn", state, parent=self)
-        ok = (dlg.exec() == QtWidgets.QDialog.Accepted)  # 明确 Accepted/Rejected
-        return {"ok": bool(ok), "session": (dlg.verified_session if ok else None)}
+        ok = (dlg.exec() == QtWidgets.QDialog.Accepted)
+        result_container["ok"] = bool(ok)
+        result_container["session"] = (dlg.verified_session if ok else None)
 
 class MFAHandler:
     def __init__(self, session, base_url, mfa_type, state):
@@ -1017,6 +1074,7 @@ def login():
             QtCore.Q_ARG(object, session),
             QtCore.Q_ARG(str, mfa_state),
         )
+        print(res.text())
         if not res or not res.get("ok"):
             return "用户取消或验证失败"
         try:
@@ -1913,7 +1971,10 @@ def login3_sync_qthread():
 
 
 start_fp_preloader()
-app=QApplication(sys.argv)
+if QtWidgets.QApplication.instance() is None:
+    app = QtWidgets.QApplication(sys.argv)
+else:
+    app = QtWidgets.QApplication.instance()
 form=Ui_Form()
 form1=Ui_Form1()
 form2=Ui_MainWindow()

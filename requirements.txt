@@ -1,0 +1,6 @@
+selenium
+webdriver-manager
+PyQt5
+requests
+lxml
+cryptography
