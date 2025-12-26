@@ -30,7 +30,7 @@
 
 ### 方式一：使用打包好的程序 (推荐)
 
-直接下载并运行 `XJTUCourseGeniusSetup.exe` 安装包（如果有发布）。
+直接下载并运行 `XJTUCourseGeniusSetup.exe` 安装包。
 
 ### 方式二：从源码运行
 
