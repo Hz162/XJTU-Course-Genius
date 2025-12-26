@@ -62,7 +62,7 @@ try:
         return None
 
     edge_ver = get_edge_version()
-    print(f"Detected Edge Version: {edge_ver}")
+    #print(f"Detected Edge Version: {edge_ver}")
 
     if edge_ver:
         # 如果检测到版本，直接指定版本下载，避免 webdriver_manager 去请求不存在的 LATEST_RELEASE_XXX 文件
@@ -1063,23 +1063,24 @@ def login():
             mfa_state = mfa_info.get("data", {}).get("state", "")
             mfa_need = mfa_info.get("data", {}).get("need", False)
     except Exception as e:
-        print(f"Error parsing MFA response: {e}")
+        QtWidgets.QMessageBox.warning(None, "MFA Error", f"Error parsing MFA response: {e}")
     
     trustAgent = ""
     if mfa_need:
-        res = QtCore.QMetaObject.invokeMethod(
+        result_container = {}
+        QtCore.QMetaObject.invokeMethod(
             mainwin,
             "run_mfa",
             QtCore.Qt.BlockingQueuedConnection,
             QtCore.Q_ARG(object, session),
             QtCore.Q_ARG(str, mfa_state),
+            QtCore.Q_ARG(dict, result_container),
         )
-        print(res.text())
-        if not res or not res.get("ok"):
+        if not result_container.get("ok"):
             return "用户取消或验证失败"
         try:
             # 直接使用整个经过验证的 session
-            session = res["session"]
+            session = result_container["session"]
         except Exception:
             pass
         trustAgent = "true"
