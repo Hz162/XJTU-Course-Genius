@@ -37,8 +37,8 @@
 1. **克隆仓库**
 
     ```bash
-    git clone https://github.com/Hz162/qk3.git
-    cd qk3
+    git clone https://github.com/Hz162/XJTU-Course-Genius.git
+    cd XJTU-Course-Genius
     ```
 
 2. **安装依赖**
