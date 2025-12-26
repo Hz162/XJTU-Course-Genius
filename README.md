@@ -29,22 +29,26 @@
 ## 安装与运行 / Installation & Usage
 
 ### 方式一：使用打包好的程序 (推荐)
+
 直接下载并运行 `XJTUCourseGeniusSetup.exe` 安装包（如果有发布）。
 
 ### 方式二：从源码运行
 
-1.  **克隆仓库**
+1. **克隆仓库**
+
     ```bash
     git clone https://github.com/Hz162/qk3.git
     cd qk3
     ```
 
-2.  **安装依赖**
+2. **安装依赖**
+
     ```bash
     pip install -r requirements.txt
     ```
 
-3.  **运行程序**
+3. **运行程序**
+
     ```bash
     python login.py
     ```
@@ -53,6 +57,7 @@
 
 **Q: 启动时提示驱动下载失败？**
 A: 程序内置了多重容错机制：
+
 1. 优先检测本地 Edge 版本并从淘宝镜像下载对应驱动。
 2. 如果自动下载失败，程序会尝试查找根目录下的 `msedgedriver.exe`。
 3. 您可以手动下载对应版本的 `msedgedriver.exe` 放到程序目录下。下载地址：[淘宝镜像源](https://npmmirror.com/mirrors/edgedriver/)
