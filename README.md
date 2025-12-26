@@ -1,4 +1,4 @@
-# XJTU Course Genius (qk3)
+# XJTU Course Genius
 
 西安交通大学选课辅助工具 / XJTU Course Selection Assistant
 
