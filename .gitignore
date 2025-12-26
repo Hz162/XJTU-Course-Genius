@@ -32,6 +32,8 @@
 *.vsdm
 *.pub
 *.mpp
+# 可执行文件
+XJTUCourseGeniusSetup.exe
 
 # Office 临时/锁文件与通用临时
 ~$*
