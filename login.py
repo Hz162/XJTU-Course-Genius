@@ -1,7 +1,7 @@
 import os
 import sys
-#sys.stdout = open(os.devnull, 'w')
-#sys.stderr = open(os.devnull, 'w')
+sys.stdout = open(os.devnull, 'w')
+sys.stderr = open(os.devnull, 'w')
 from selenium import webdriver
 from selenium.webdriver.edge.service import Service as EdgeService
 from webdriver_manager.microsoft import EdgeChromiumDriverManager
@@ -26,6 +26,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from textwrap import fill
 import threading
+import traceback
 
 
 
@@ -47,6 +48,30 @@ if QtWidgets.QApplication.instance() is None:
     app = QtWidgets.QApplication(sys.argv)
 else:
     app = QtWidgets.QApplication.instance()
+
+# 全局异常捕获
+def exception_hook(type, value, tb):
+    error_msg = ''.join(traceback.format_exception(type, value, tb))
+    
+    # 将错误写入日志文件
+    try:
+        with open('crash.log', 'a', encoding='utf-8') as f:
+            f.write(f"\n{'='*30}\n")
+            f.write(f"Time: {datetime.now()}\n")
+            f.write(error_msg)
+    except Exception as e:
+        pass
+
+    # 尝试弹窗显示错误
+    try:
+        QMessageBox.critical(None, "程序发生错误", f"程序发生未捕获的异常，即将退出。\n\n错误信息：\n{value}\n\n详细日志已保存至 crash.log")
+    except:
+        pass
+    
+    # 调用默认的 excepthook
+    sys.__excepthook__(type, value, tb)
+
+sys.excepthook = exception_hook
 
 try:
     import winreg
@@ -833,12 +858,12 @@ class startss(QThread):
         global res1
         global course
         global flag
-        flags1=[0]*len(course)
         while not self._stopped:
             #not flag
             login3_sync_qthread()
             if self._stopped:
                 return
+            flags1=[0]*len(course)
             self.que.emit()
             self.pause()
             self.check_mutex()
@@ -846,19 +871,43 @@ class startss(QThread):
                 if self._stopped:
                     return
                 sleep(0.1)
-                flag1=True
                 for j in range(len(course)):
                     if self._stopped:
                         return
-                    if flags1[j]==0:
-                        flag1=False
-                        if capacity(course[j][0]):
-                            for k in delcourses[j]:
-                                if self._stopped:
-                                    return
-                                deleteVolunteer(k)
-                            volunteer(course[j][0],course[j][4],course[j][5])
-                if flag1:
+                    # 安全检查
+                    if j >= len(course) or j >= len(flags1):
+                        flags1=[0]*len(course)
+                        break
+
+                    # 动态处理 flags1 长度不足的情况（新增课程时）
+                    current_flag = 0
+                    if j < len(flags1):
+                        current_flag = flags1[j]
+                    if current_flag==0:
+                        try:
+                            if capacity(course[j][0]):
+                                for k in delcourses[j]:
+                                    if self._stopped:
+                                        return
+                                    if j >= len(course) or j >= len(flags1):
+                                        flags1=[0]*len(course)
+                                        break
+                                    deleteVolunteer(k)
+                                if j >= len(course) or j >= len(flags1):
+                                    flags1=[0]*len(course)
+                                    break
+                                volunteer(course[j][0],course[j][4],course[j][5])
+                        #except IndexError:
+                        #    break
+                        except Exception as e:
+                            print(f"Error: {e}")
+                            break
+                # 检查是否全部完成
+                if len(course)==0:
+                    all_done = True
+                else:
+                    all_done = all(flag1 == 1 for flag1 in flags1)
+                if all_done:
                     flag=True
                     self.bu.emit()                
             sleep(0.1)
@@ -1025,6 +1074,11 @@ def login():
     global account, pwd, FP_VISITOR_ID, fpVisitorId
     global PUB_PEM
     fpVisitorId = (FP_EVENT.wait(10) and FP_VISITOR_ID) or (lambda: (lambda v: v if v else "")(getfpVisitorId()))()
+    #判断有无网络，无网络则返回
+    try:
+        requests.get("https://xkfw.xjtu.edu.cn",timeout=5)
+    except:
+        return "网络连接失败，请检查网络后重试"
     url1 = 'https://xkfw.xjtu.edu.cn'
     resp1 = session.get(url1, headers=headers)
     resp1.encoding = resp1.apparent_encoding  # 便于解析
@@ -1206,15 +1260,16 @@ def on_login_result(msg):
 
 
 def savee():
-    global course, res, current_campus, form2
+    global course, res, current_campus, form2, delcourses
     for i in range(len(res)):
         if (form2.tableWidget.cellWidget(i,4).checkbox.isChecked()):
             temp=res[i]
             temp.append(current_campus)
-            course.append(temp)
-            delcourses.append([])
-    course=[element for index , element in enumerate(course) if element not in course[:index]]
-
+            #判读是否重复
+            if temp not in course:
+                course.append(temp)
+                delcourses.append([])
+    
 def readconfig():
     global course
     global delcourses
@@ -1842,16 +1897,13 @@ def ksxk():
 
 def deldelcourses():
     global delcourses
-    cou=delcourses[form2.comboBox.currentIndex()]
-    try:
-        del cou[form2.comboBox_2.currentIndex()]
-    except:
-        c=1
-    delcourses[form2.comboBox.currentIndex()]=cou
     try:
         cou=delcourses[form2.comboBox.currentIndex()]
-    except:
-        cou=[]
+        del cou[form2.comboBox_2.currentIndex()]
+        delcourses[form2.comboBox.currentIndex()]=cou
+    except IndexError:
+        #忽略
+        pass
     sx()
 
 def indelcourses():

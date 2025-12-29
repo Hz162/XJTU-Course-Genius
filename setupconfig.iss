@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "XJTU Course Genie"
-#define MyAppVersion "3.5"
+#define MyAppVersion "3.6"
 #define MyAppPublisher "Hz"
 #define MyAppExeName "login.exe"
 
@@ -31,6 +31,9 @@ OutputBaseFilename=mysetup
 SolidCompression=yes
 WizardStyle=modern
 
+[Dirs]
+Name: "{app}"; Permissions: users-modify
+
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 
@@ -38,9 +41,9 @@ Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.i
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "D:\qk3\dist\login\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\qk3\dist\login\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "D:\qk3\dist\login\config.ini"; DestDir: "{app}"; Flags: ignoreversion
+Source: "D:\XJTU-Course-Genius\dist\login\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "D:\XJTU-Course-Genius\dist\login\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "D:\XJTU-Course-Genius\dist\login\config.ini"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
