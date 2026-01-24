@@ -1,7 +1,7 @@
 import os
 import sys
-sys.stdout = open(os.devnull, 'w')
-sys.stderr = open(os.devnull, 'w')
+#sys.stdout = open(os.devnull, 'w')
+#sys.stderr = open(os.devnull, 'w')
 from selenium import webdriver
 from selenium.webdriver.edge.service import Service as EdgeService
 from webdriver_manager.microsoft import EdgeChromiumDriverManager
