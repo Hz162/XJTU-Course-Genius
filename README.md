@@ -53,6 +53,18 @@
     python login.py
     ```
 
+## 开发注意事项 / Development Notes
+
+在 `login.py` 文件的开头部分有以下代码：
+
+```python
+#sys.stdout = open(os.devnull, 'w')
+#sys.stderr = open(os.devnull, 'w')
+```
+
+- **调试运行 (Debug)**: 请保持注释状态（保留 `#`）。这样可以在终端看到详细的日志输出，便于排查问题。
+- **编译打包 (Build)**: 建议取消注释（去掉 `#`）。这可以将标准输出重定向到空设备，防止在无控制台模式下运行时因输出缓冲区问题导致程序崩溃。
+
 ## 常见问题 / FAQ
 
 **Q: 启动时提示驱动下载失败？**
