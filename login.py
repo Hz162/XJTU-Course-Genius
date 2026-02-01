@@ -5,6 +5,7 @@ import sys
 from selenium import webdriver
 from selenium.webdriver.edge.service import Service as EdgeService
 from webdriver_manager.microsoft import EdgeChromiumDriverManager
+from webdriver_manager.core.driver_cache import DriverCacheManager
 from selenium.webdriver.edge.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -75,6 +76,7 @@ sys.excepthook = exception_hook
 
 try:
     import winreg
+    import shutil
     def get_edge_version():
         # 尝试从注册表获取 Edge 版本 (HKCU 和 HKLM)
         for hkey in [winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE]:
@@ -94,7 +96,8 @@ try:
         driver_path = EdgeChromiumDriverManager(
             version=edge_ver,
             url="https://npmmirror.com/mirrors/edgedriver",
-            latest_release_url="https://npmmirror.com/mirrors/edgedriver/LATEST_RELEASE"
+            latest_release_url="https://npmmirror.com/mirrors/edgedriver/LATEST_RELEASE",
+            cache_manager=DriverCacheManager(root_dir=os.path.abspath('.'))
         ).install()
     else:
         # 如果没检测到版本，先尝试获取镜像源的最新版本号
@@ -105,14 +108,37 @@ try:
             driver_path = EdgeChromiumDriverManager(
                 version=latest_ver,
                 url="https://npmmirror.com/mirrors/edgedriver",
-                latest_release_url="https://npmmirror.com/mirrors/edgedriver/LATEST_RELEASE"
+                latest_release_url="https://npmmirror.com/mirrors/edgedriver/LATEST_RELEASE",
+                cache_manager=DriverCacheManager(root_dir=os.path.abspath('.'))
             ).install()
         except:
             # 最后的尝试
             driver_path = EdgeChromiumDriverManager(
                 url="https://npmmirror.com/mirrors/edgedriver",
-                latest_release_url="https://npmmirror.com/mirrors/edgedriver/LATEST_RELEASE"
+                latest_release_url="https://npmmirror.com/mirrors/edgedriver/LATEST_RELEASE",
+                cache_manager=DriverCacheManager(root_dir=os.path.abspath('.'))
             ).install()
+
+    # 清理旧版本驱动
+    try:
+        if driver_path and os.path.exists(driver_path):
+            driver_dir = os.path.dirname(driver_path) # 当前版本目录
+            parent_dir = os.path.dirname(driver_dir)  # win64目录
+            current_version = os.path.basename(driver_dir)
+            
+            # 安全检查：确保我们要在 edgedriver 的相关目录下操作，避免误删导致 disastrous consequences
+            if "edgedriver" in parent_dir.lower() and os.path.isdir(parent_dir):
+                for name in os.listdir(parent_dir):
+                    path = os.path.join(parent_dir, name)
+                    # 必须是目录，且不是当前版本目录，且要是版本号目录（通过父目录确认）
+                    if os.path.isdir(path) and name != current_version:
+                        try:
+                            # 简单的判断，避免误删非版本目录
+                            shutil.rmtree(path)
+                        except:
+                            pass
+    except:
+        pass
 except Exception as e:
     QtWidgets.QMessageBox.warning(None, "驱动下载失败", f"自动下载驱动失败: {e}\n将尝试使用本地 msedgedriver.exe")
     driver_path = "msedgedriver.exe"

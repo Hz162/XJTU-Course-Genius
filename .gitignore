@@ -44,3 +44,5 @@ XJTUCourseGeniusSetup.exe
 Thumbs.db
 Desktop.ini
 .vscode/
+#浏览器驱动
+.wdm/
