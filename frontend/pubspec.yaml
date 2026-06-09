@@ -1,0 +1,33 @@
+name: xjtu_course_genius
+description: XJTU Course Genius - 西安交通大学选课辅助工具
+publish_to: 'none'
+version: 4.0.0
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.0
+  provider: ^6.1.1
+  shared_preferences: ^2.2.2
+  fluentui_system_icons: ^1.1.221
+  window_manager: ^0.3.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo.png
+  fonts:
+    - family: NotoSansSC
+      fonts:
+        - asset: assets/fonts/NotoSansSC-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/NotoSansSC-Bold.ttf
+          weight: 700
