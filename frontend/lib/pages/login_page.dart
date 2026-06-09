@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
+import '../services/ime_service.dart';
 import '../theme/app_theme.dart';
 import 'round_page.dart';
 import 'mfa_page.dart';
@@ -16,17 +17,60 @@ class _LoginPageState extends State<LoginPage> {
   final _accountCtl = TextEditingController();
   final _pwdCtl = TextEditingController();
   final _captchaCtl = TextEditingController();
+  final _accountFocus = FocusNode();
+  final _pwdFocus = FocusNode();
+  final _captchaFocus = FocusNode();
   final _api = ApiService();
   bool _loading = false;
   bool _captchaRequired = false;
   Uint8List? _captchaImg;
+  String _campus = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _accountFocus.addListener(() {
+      if (_accountFocus.hasFocus) {
+        ImeService.onFieldFocus();
+      } else {
+        ImeService.onFieldBlur();
+      }
+    });
+    _pwdFocus.addListener(() {
+      if (_pwdFocus.hasFocus) {
+        ImeService.onFieldFocus();
+      } else {
+        ImeService.onFieldBlur();
+      }
+    });
+    _captchaFocus.addListener(() {
+      if (_captchaFocus.hasFocus) {
+        ImeService.onFieldFocus();
+      } else {
+        ImeService.onFieldBlur();
+      }
+    });
+  }
 
   @override
   void dispose() {
+    ImeService.forceRestore();
     _accountCtl.dispose();
     _pwdCtl.dispose();
     _captchaCtl.dispose();
+    _accountFocus.dispose();
+    _pwdFocus.dispose();
+    _captchaFocus.dispose();
     super.dispose();
+  }
+
+  void _resetCaptcha() {
+    if (!_captchaRequired) return;
+    setState(() {
+      _captchaRequired = false;
+      _captchaImg = null;
+      _captchaCtl.clear();
+    });
   }
 
   Future<void> _loadCaptcha() async {
@@ -50,13 +94,17 @@ class _LoginPageState extends State<LoginPage> {
           captcha: _captchaRequired ? _captchaCtl.text.trim() : '');
 
       if (result['captcha_required'] == true) {
-        setState(() { _captchaRequired = true; _loading = false; });
+        setState(() {
+          _captchaRequired = true;
+          _loading = false;
+        });
         _loadCaptcha();
         return;
       }
 
       if (result['account_choice_required'] == true) {
-        final choices = List<Map<String, String>>.from(result['choices'] ?? []);
+        final choices =
+            List<Map<String, String>>.from(result['choices'] ?? []);
         if (!mounted) return;
         setState(() => _loading = false);
         final chosen = await _showAccountChoice(choices);
@@ -64,7 +112,8 @@ class _LoginPageState extends State<LoginPage> {
         setState(() => _loading = true);
         final choiceResult = await _api.chooseAccount(chosen);
         if (choiceResult['success'] == true) {
-          _gotoRounds();
+          if (choiceResult['campus'] != null) _campus = choiceResult['campus'];
+          await _gotoRounds();
         } else {
           _showError(choiceResult['error'] ?? '账户选择失败');
         }
@@ -73,13 +122,15 @@ class _LoginPageState extends State<LoginPage> {
 
       if (result['mfa_required'] == true) {
         if (!mounted) return;
+        if (result['campus'] != null) _campus = result['campus'];
         final ok = await Navigator.push<bool>(
           context,
           MaterialPageRoute(builder: (_) => MfaPage(api: _api)),
         );
-        if (ok == true) _gotoRounds();
+        if (ok == true) await _gotoRounds();
       } else if (result['success'] == true) {
-        _gotoRounds();
+        if (result['campus'] != null) _campus = result['campus'];
+        await _gotoRounds();
       } else {
         _showError(result['error'] ?? '登录失败');
       }
@@ -90,29 +141,35 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _gotoRounds() {
+  Future<void> _gotoRounds() async {
     if (!mounted) return;
-    Navigator.pushReplacement(
+    await ImeService.forceRestore();
+    if (!mounted) return;
+    Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => RoundPage(api: _api)),
+      MaterialPageRoute(builder: (_) => RoundPage(api: _api, campus: _campus)),
     );
   }
 
-  Future<String?> _showAccountChoice(List<Map<String, String>> choices) async {
+  Future<String?> _showAccountChoice(
+      List<Map<String, String>> choices) async {
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('选择登录身份'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: choices.map((c) => ListTile(
-            title: Text(c['name'] ?? ''),
-            onTap: () {
-              final type = (c['name'] ?? '').contains('本科')
-                  ? 'undergraduate' : 'postgraduate';
-              Navigator.pop(ctx, type);
-            },
-          )).toList(),
+          children: choices
+              .map((c) => ListTile(
+                    title: Text(c['name'] ?? ''),
+                    onTap: () {
+                      final type = (c['name'] ?? '').contains('本科')
+                          ? 'undergraduate'
+                          : 'postgraduate';
+                      Navigator.pop(ctx, type);
+                    },
+                  ))
+              .toList(),
         ),
         actions: [
           TextButton(
@@ -152,10 +209,14 @@ class _LoginPageState extends State<LoginPage> {
               ? const Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox(width: 40, height: 40,
-                        child: CircularProgressIndicator(strokeWidth: 3)),
+                    SizedBox(
+                        width: 40,
+                        height: 40,
+                        child:
+                            CircularProgressIndicator(strokeWidth: 3)),
                     SizedBox(height: 16),
-                    Text('正在登录...', style: TextStyle(color: Color(0xFF909399))),
+                    Text('正在登录...',
+                        style: TextStyle(color: Color(0xFF909399))),
                   ],
                 )
               : _buildForm(),
@@ -172,7 +233,10 @@ class _LoginPageState extends State<LoginPage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
-          BoxShadow(color: Color(0x0A000000), blurRadius: 24, offset: Offset(0, 4)),
+          BoxShadow(
+              color: Color(0x0A000000),
+              blurRadius: 24,
+              offset: Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -180,11 +244,14 @@ class _LoginPageState extends State<LoginPage> {
         children: [
           _buildLogo(),
           const SizedBox(height: 12),
-          const Text('西安交通大学', style: TextStyle(
-            fontSize: 13, color: Color(0xFF909399))),
+          const Text('西安交通大学',
+              style: TextStyle(fontSize: 13, color: Color(0xFF909399))),
           const SizedBox(height: 4),
-          const Text('统一身份认证', style: TextStyle(
-            fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF303133))),
+          const Text('统一身份认证',
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF303133))),
           const SizedBox(height: 28),
           _buildInputs(),
           if (_captchaRequired) ...[
@@ -194,8 +261,8 @@ class _LoginPageState extends State<LoginPage> {
           const SizedBox(height: 24),
           _buildLoginButton(),
           const SizedBox(height: 12),
-          const Text('Ctrl + Enter 快速登录', style: TextStyle(
-            fontSize: 11, color: Color(0xFFC0C4CC))),
+          const Text('Ctrl + Enter 快速登录',
+              style: TextStyle(fontSize: 11, color: Color(0xFFC0C4CC))),
         ],
       ),
     );
@@ -203,16 +270,21 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildLogo() {
     return Container(
-      width: 56, height: 56,
+      width: 56,
+      height: 56,
       decoration: const BoxDecoration(
         borderRadius: BorderRadius.all(Radius.circular(14)),
         gradient: primaryGradient,
       ),
       child: Center(
         child: Image.asset('assets/logo.png',
-            width: 56, height: 56,
+            width: 56,
+            height: 56,
             errorBuilder: (_, __, ___) => const Text('西',
-                style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700))),
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700))),
       ),
     );
   }
@@ -222,46 +294,71 @@ class _LoginPageState extends State<LoginPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
-        boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 3, offset: Offset(0, 1))],
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x05000000),
+              blurRadius: 3,
+              offset: Offset(0, 1))
+        ],
       ),
       child: Column(
         children: [
           TextField(
             controller: _accountCtl,
+            focusNode: _accountFocus,
+            keyboardType: TextInputType.emailAddress,
+            inputFormatters: [
+              FilteringTextInputFormatter.deny(RegExp(r'[一-鿿]')),
+            ],
             decoration: const InputDecoration(
               hintText: '请输入账号',
-              prefixIcon: Icon(Icons.person_outline, color: Color(0xFFC0C4CC)),
+              prefixIcon:
+                  Icon(Icons.person_outline, color: Color(0xFFC0C4CC)),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+                borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(10)),
                 borderSide: BorderSide(color: Color(0xFFEBEEF5)),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+                borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(10)),
                 borderSide: BorderSide(color: Color(0xFFEBEEF5)),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+                borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(10)),
                 borderSide: BorderSide(color: primaryColor, width: 2),
               ),
             ),
+            onChanged: (_) => _resetCaptcha(),
             textInputAction: TextInputAction.next,
           ),
           Container(height: 1, color: const Color(0xFFF2F6FC)),
           TextField(
             controller: _pwdCtl,
+            focusNode: _pwdFocus,
+            onChanged: (_) => _resetCaptcha(),
+            keyboardType: TextInputType.visiblePassword,
+            inputFormatters: [
+              FilteringTextInputFormatter.deny(RegExp(r'[一-鿿]')),
+            ],
             decoration: const InputDecoration(
               hintText: '请输入密码',
-              prefixIcon: Icon(Icons.lock_outline, color: Color(0xFFC0C4CC)),
+              prefixIcon:
+                  Icon(Icons.lock_outline, color: Color(0xFFC0C4CC)),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
+                borderRadius:
+                    BorderRadius.vertical(bottom: Radius.circular(10)),
                 borderSide: BorderSide(color: Color(0xFFEBEEF5)),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
+                borderRadius:
+                    BorderRadius.vertical(bottom: Radius.circular(10)),
                 borderSide: BorderSide(color: Color(0xFFEBEEF5)),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
+                borderRadius:
+                    BorderRadius.vertical(bottom: Radius.circular(10)),
                 borderSide: BorderSide(color: primaryColor, width: 2),
               ),
             ),
@@ -290,6 +387,7 @@ class _LoginPageState extends State<LoginPage> {
         const SizedBox(height: 8),
         TextField(
           controller: _captchaCtl,
+          focusNode: _captchaFocus,
           decoration: const InputDecoration(
             hintText: '输入验证码',
             prefixIcon: Icon(Icons.security, color: Color(0xFFC0C4CC)),
@@ -303,23 +401,32 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildLoginButton() {
     return SizedBox(
-      width: double.infinity, height: 44,
+      width: double.infinity,
+      height: 44,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
           gradient: _loading ? null : primaryGradient,
-          boxShadow: _loading ? null : const [
-            BoxShadow(color: Color(0x4D409EFF), blurRadius: 8, offset: Offset(0, 2)),
-          ],
+          boxShadow: _loading
+              ? null
+              : const [
+                  BoxShadow(
+                      color: Color(0x4D409EFF),
+                      blurRadius: 8,
+                      offset: Offset(0, 2)),
+                ],
         ),
         child: FilledButton(
           onPressed: _loading ? null : _login,
           style: FilledButton.styleFrom(
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
           ),
-          child: const Text('登 录', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          child: const Text('登 录',
+              style:
+                  TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
         ),
       ),
     );

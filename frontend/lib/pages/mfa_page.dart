@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/api_service.dart';
+import '../services/ime_service.dart';
 import '../theme/app_theme.dart';
 
 class MfaPage extends StatefulWidget {
@@ -15,37 +17,48 @@ class _MfaPageState extends State<MfaPage> {
   String _method = 'securephone';
   String _target = '';
   final _codeCtl = TextEditingController();
+  final _codeFocus = FocusNode();
   bool _sending = false;
+  bool _initLoading = true;
   int _countdown = 0;
   Timer? _timer;
-  bool _loading = true;
+  bool _codeSent = false;
 
   @override
   void initState() {
     super.initState();
-    _autoInit();
+    _codeFocus.addListener(() {
+      if (_codeFocus.hasFocus) {
+        ImeService.onFieldFocus();
+      } else {
+        ImeService.onFieldBlur();
+      }
+    });
+    _initMethod();
   }
 
   @override
   void dispose() {
+    ImeService.forceRestore();
     _codeCtl.dispose();
+    _codeFocus.dispose();
     _timer?.cancel();
     super.dispose();
   }
 
-  Future<void> _autoInit() async {
+  Future<void> _initMethod() async {
+    setState(() => _initLoading = true);
     try {
       final result = await widget.api.mfaInit(_method);
       if (!mounted) return;
       setState(() {
         _target = result['target'] ?? '';
-        _loading = false;
+        _initLoading = false;
       });
-      _sendCode();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
-      _showError('MFA初始化失败');
+      setState(() => _initLoading = false);
+      _showError('初始化失败');
     }
   }
 
@@ -53,6 +66,7 @@ class _MfaPageState extends State<MfaPage> {
     setState(() => _sending = true);
     try {
       await widget.api.mfaSend();
+      setState(() => _codeSent = true);
       _startCountdown();
     } catch (e) {
       _showError('发送失败');
@@ -92,11 +106,14 @@ class _MfaPageState extends State<MfaPage> {
   }
 
   Future<void> _switchMethod(String m) async {
+    _timer?.cancel();
     setState(() {
       _method = m;
-      _loading = true;
+      _codeSent = false;
+      _countdown = 0;
+      _codeCtl.clear();
     });
-    await _autoInit();
+    await _initMethod();
   }
 
   void _showError(String msg) {
@@ -125,7 +142,7 @@ class _MfaPageState extends State<MfaPage> {
                   offset: Offset(0, 4)),
             ],
           ),
-          child: _loading
+          child: _initLoading
               ? const Center(child: CircularProgressIndicator())
               : Column(
                   mainAxisSize: MainAxisSize.min,
@@ -136,8 +153,8 @@ class _MfaPageState extends State<MfaPage> {
                     _buildMethodCards(),
                     const SizedBox(height: 24),
                     _buildStepRow(2, _target.isNotEmpty
-                        ? '验证码已发送至 ${_obscureTarget(_target)}'
-                        : '输入验证码'),
+                        ? '发送至 ${_formatTarget(_target)}'
+                        : '获取验证码'),
                     const SizedBox(height: 12),
                     _buildCodeInput(),
                     const SizedBox(height: 20),
@@ -225,32 +242,66 @@ class _MfaPageState extends State<MfaPage> {
   Widget _buildCodeInput() {
     return Row(
       children: [
-        Expanded(
-          flex: 3,
-          child: TextField(
-            controller: _codeCtl,
-            decoration: const InputDecoration(
-              hintText: '输入验证码',
-              prefixIcon: Icon(Icons.pin_outlined, color: Color(0xFFC0C4CC)),
+        if (!_codeSent)
+          Expanded(
+            flex: 3,
+            child: SizedBox(
+              height: 44,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  gradient: primaryGradient,
+                ),
+                child: FilledButton(
+                  onPressed: (_sending) ? null : _sendCode,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: Text(_sending ? '发送中...' : '发送验证码',
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600)),
+                ),
+              ),
             ),
-            keyboardType: TextInputType.number,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _verify(),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          flex: 2,
-          child: OutlinedButton(
-            onPressed: (_countdown == 0 && !_sending) ? _sendCode : null,
-            style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14)),
-            child: Text(
-              _countdown > 0 ? '${_countdown}s' : '重新发送',
-              style: const TextStyle(fontSize: 13),
+          )
+        else ...[
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: _codeCtl,
+              focusNode: _codeFocus,
+              inputFormatters: [
+                FilteringTextInputFormatter.deny(
+                    RegExp(r'[一-鿿　-〿＀-￯]')),
+              ],
+              decoration: const InputDecoration(
+                hintText: '输入验证码',
+                prefixIcon:
+                    Icon(Icons.pin_outlined, color: Color(0xFFC0C4CC)),
+              ),
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _verify(),
             ),
           ),
-        ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: OutlinedButton(
+              onPressed:
+                  (_countdown == 0 && !_sending) ? _sendCode : null,
+              style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14)),
+              child: Text(
+                _countdown > 0 ? '${_countdown}s' : '重发',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -261,32 +312,43 @@ class _MfaPageState extends State<MfaPage> {
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          gradient: primaryGradient,
-          boxShadow: const [
-            BoxShadow(
-                color: Color(0x4D409EFF),
-                blurRadius: 8,
-                offset: Offset(0, 2)),
-          ],
+          gradient: _codeSent ? primaryGradient : null,
+          color: _codeSent ? null : const Color(0xFFDCDFE6),
+          boxShadow: _codeSent
+              ? const [
+                  BoxShadow(
+                      color: Color(0x4D409EFF),
+                      blurRadius: 8,
+                      offset: Offset(0, 2)),
+                ]
+              : null,
         ),
         child: FilledButton(
-          onPressed: _verify,
+          onPressed: _codeSent ? _verify : null,
           style: FilledButton.styleFrom(
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
+            disabledBackgroundColor: Colors.transparent,
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10)),
           ),
           child: const Text('验 证',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              style:
+                  TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
         ),
       ),
     );
   }
 
-  String _obscureTarget(String target) {
+  String _formatTarget(String target) {
+    if (target.isEmpty) return target;
+    if (target.contains('@')) {
+      final parts = target.split('@');
+      final name = parts[0];
+      if (name.length <= 3) return '$name@${parts[1]}';
+      return '${name.substring(0, 3)}***@${parts[1]}';
+    }
     if (target.length <= 4) return target;
-    final half = (target.length - 4) ~/ 2;
-    return '${target.substring(0, half)}****${target.substring(target.length - (4 - half))}';
+    return '${target.substring(0, 3)}****${target.substring(target.length - 4)}';
   }
 }
