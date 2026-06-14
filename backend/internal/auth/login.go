@@ -21,7 +21,13 @@ const (
 
 var failCount int
 
-func ResetFailCount()          { failCount = 0 }
+func ResetFailCount() {
+	failCount = 0
+	captchaCASURL = ""
+	captchaExecution = ""
+	captchaMFAState = ""
+	captchaFpID = ""
+}
 func IsCaptchaRequired() bool  { return failCount >= 3 }
 
 // isCaptchaPage checks if CAS returned the login page with captcha required.
@@ -119,6 +125,12 @@ var safetyVerifySecState string
 var accountChoiceExecution string
 var accountChoices []map[string]string
 
+// stored state for captcha retry (same CAS session as captcha image)
+var captchaCASURL string
+var captchaExecution string
+var captchaMFAState string
+var captchaFpID string
+
 func FullLogin(client *resty.Client, account, password string) error {
 	return FullLoginWithCaptcha(client, account, password, "")
 }
@@ -129,52 +141,71 @@ func FullLoginWithCaptcha(client *resty.Client, account, password, captcha strin
 		return &CaptchaNeededError{}
 	}
 
-	fpID, err := GetFingerprint()
-	if err != nil {
-		return fmt.Errorf("指纹获取失败: %w", err)
-	}
-	session.SetFpVisitorID(fpID)
-
-	// Use raw http.Client for CAS login (resty's cookie jar has issues)
 	httpClient := client.GetClient()
 
-	// Step 1: GET xkfw → CAS redirect (don't follow, we need the CAS URL)
-	resp, err := httpClient.Get(baseURL)
-	if err != nil {
-		return fmt.Errorf("访问选课系统失败: %w", err)
-	}
-	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	casURL := resp.Request.URL.String()
-	execution := extractExecution(body)
+	var casURL, execution, mfaState, fpID string
+	var encPwd string
 
-	// Step 2: GET public key
-	pubResp, err := httpClient.Get(casBaseURL + "/cas/jwt/publicKey")
-	if err != nil {
-		return fmt.Errorf("获取公钥失败: %w", err)
-	}
-	pubBody, _ := io.ReadAll(pubResp.Body)
-	pubResp.Body.Close()
-	SetPubKey(string(pubBody))
+	// Captcha retry: reuse the same CAS session/execution that the captcha image belongs to
+	if captcha != "" && captchaCASURL != "" {
+		casURL = captchaCASURL
+		execution = captchaExecution
+		mfaState = captchaMFAState
+		fpID = captchaFpID
 
-	encPwd, err := EncryptPassword(password)
-	if err != nil {
-		return fmt.Errorf("密码加密失败: %w", err)
+		encPwd, _ = EncryptPassword(password)
+	} else {
+		fpID, err := GetFingerprint()
+		if err != nil {
+			return fmt.Errorf("指纹获取失败: %w", err)
+		}
+		session.SetFpVisitorID(fpID)
+
+		// Step 1: GET xkfw → CAS redirect
+		resp, err := httpClient.Get(baseURL)
+		if err != nil {
+			return fmt.Errorf("访问选课系统失败: %w", err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		casURL = resp.Request.URL.String()
+		execution = extractExecution(body)
+
+		// Step 2: GET public key
+		pubResp, err := httpClient.Get(casBaseURL + "/cas/jwt/publicKey")
+		if err != nil {
+			return fmt.Errorf("获取公钥失败: %w", err)
+		}
+		pubBody, _ := io.ReadAll(pubResp.Body)
+		pubResp.Body.Close()
+		SetPubKey(string(pubBody))
+
+		encPwd, err = EncryptPassword(password)
+		if err != nil {
+			return fmt.Errorf("密码加密失败: %w", err)
+		}
+
+		// Step 3: MFA detect
+		mfaNeed, mfaState2, err := detectMFA(client, account, encPwd, fpID)
+		if err != nil {
+			return fmt.Errorf("MFA检测失败: %w", err)
+		}
+		mfaState = mfaState2
+
+		if mfaNeed {
+			currentMFA = &MFAInfo{State: mfaState, Flow: MFAFlowMFA}
+			ClearSafetyVerify()
+			return &MFANeededError{State: mfaState, Reason: "需要MFA验证", IsMFA: true}
+		}
+
+		// Store for captcha retry
+		captchaCASURL = casURL
+		captchaExecution = execution
+		captchaMFAState = mfaState
+		captchaFpID = fpID
 	}
 
-	// Step 3: MFA detect (use resty for this — it's a simple JSON API)
-	mfaNeed, mfaState, err := detectMFA(client, account, encPwd, fpID)
-	if err != nil {
-		return fmt.Errorf("MFA检测失败: %w", err)
-	}
-
-	if mfaNeed {
-		currentMFA = &MFAInfo{State: mfaState, Flow: MFAFlowMFA}
-		ClearSafetyVerify()
-		return &MFANeededError{State: mfaState, Reason: "需要MFA验证", IsMFA: true}
-	}
-
-	// Step 4: submit CAS form using raw http client (so cookies are properly stored)
+	// Step 4: submit CAS form
 	return postCASRaw(httpClient, casURL, account, encPwd, execution, mfaState, fpID, captcha, "")
 }
 
@@ -285,10 +316,10 @@ func postCASRaw(httpClient *http.Client, casURL, account, encPwd, execution, mfa
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 
-	// CAS may return reCAPTCHA page instead of redirect
+	// CAS returned captcha page — either first time or wrong code
 	if isCaptchaPage(body) {
 		failCount++
-		return &CaptchaNeededError{}
+		return &CaptchaNeededError{Message: "验证码错误，请重试"}
 	}
 
 	// Check for alert error
@@ -373,9 +404,16 @@ type MFANeededError struct {
 
 func (e *MFANeededError) Error() string { return e.Reason }
 
-type CaptchaNeededError struct{}
+type CaptchaNeededError struct {
+	Message string `json:"message"`
+}
 
-func (e *CaptchaNeededError) Error() string { return "需要验证码" }
+func (e *CaptchaNeededError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	return "需要验证码"
+}
 
 type AccountChoiceNeededError struct {
 	Choices []map[string]string `json:"choices"`

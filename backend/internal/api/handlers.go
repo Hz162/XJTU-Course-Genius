@@ -30,8 +30,6 @@ func NewServer() *Server {
 // ── Login & MFA ──
 
 func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
-	client := session.NewClient()
-
 	var req struct {
 		Account  string `json:"account"`
 		Password string `json:"password"`
@@ -50,6 +48,14 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	st.Account = req.Account
 	st.Password = req.Password
 
+	// Captcha retry: reuse the saved client (same CAS session/execution as captcha image)
+	var client *resty.Client
+	if req.Captcha != "" && s.client != nil {
+		client = s.client
+	} else {
+		client = session.NewClient()
+	}
+
 	_, err := client.R().Head("https://xkfw.xjtu.edu.cn")
 	if err != nil {
 		writeJSON(w, 500, map[string]string{"error": "网络连接失败，请检查网络"})
@@ -61,10 +67,14 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		// Save client cookies so MFA/account-choice/captcha flows can continue
 		session.SaveCookiesFromHTTP(client.GetClient())
 		s.client = client
-		if _, ok := err.(*auth.CaptchaNeededError); ok {
-			writeJSON(w, 200, map[string]interface{}{
+		if capErr, ok := err.(*auth.CaptchaNeededError); ok {
+			resp := map[string]interface{}{
 				"captcha_required": true,
-			})
+			}
+			if capErr.Message != "" {
+				resp["error"] = capErr.Message
+			}
+			writeJSON(w, 200, resp)
 			return
 		}
 		if acErr, ok := err.(*auth.AccountChoiceNeededError); ok {
