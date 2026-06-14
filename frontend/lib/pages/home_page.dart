@@ -814,29 +814,18 @@ class _HomePageState extends State<HomePage> {
 
   List<String> _buildLogs(SelectionStatus? s) {
     if (s == null || _wishList.isEmpty) return [];
-    final logs = <String>['[10:30:00] 开始抢课'];
-    final pg = s.progress;
-    for (int i = 0; i < _wishList.length; i++) {
-      final name = _wishList[i].length > 1 ? _wishList[i][1] : (_wishList[i].isNotEmpty ? _wishList[i][0] : '?');
-      if (i < pg) {
-        logs.add('[10:30:${(i + 1).toString().padLeft(2, '0')}] $name — 抢课成功 ✓');
-      } else if (i == pg && _selecting) {
-        logs.add('[10:30:${(i + 1).toString().padLeft(2, '0')}] $name — 正在抢课...');
-      } else {
-        logs.add('[10:30:${(i + 1).toString().padLeft(2, '0')}] $name — 等待中');
-      }
+    // Use real server logs from backend, fall back to generated summary
+    if (s.log.isNotEmpty) {
+      return s.log;
     }
-    if (pg >= _wishList.length) {
-      logs.add('[完成] 全部课程抢课结束');
-    }
+    final logs = <String>['开始抢课'];
     return logs;
   }
 
   Widget _buildWishStatusItem(int i, SelectionStatus? s) {
     final c = _wishList[i];
-    final pg = s?.progress ?? 0;
-    final done = i < pg;
-    final active = !done && i == pg && _selecting;
+    final done = s != null && i < s.flags.length && s.flags[i] == 1;
+    final active = !done && (s?.running ?? false);
     final borderClr = done
         ? successColor.withAlpha(40)
         : active

@@ -2,6 +2,7 @@ package course
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -16,10 +17,12 @@ type Engine struct {
 
 	mu         sync.Mutex
 	running    bool
-	courses    [][]string   // [teachingClassID, courseName, teacherName, teachingPlace, classType, campus]
-	delCourses [][]string   // conflict course IDs to delete before grabbing
-	flags      []int        // 0=not yet, 1=done
+	courses    [][]string // [teachingClassID, courseName, teacherName, teachingPlace, classType, campus]
+	delCourses [][]string // conflict course IDs to delete before grabbing
+	flags      []int      // 0=not yet, 1=done
 	logs       []string
+	attempts   []int      // per-course attempt count
+	lastLogs   []string   // per-course last status (to avoid spam)
 	ctx        context.Context
 	cancel     context.CancelFunc
 }
@@ -66,9 +69,20 @@ func (e *Engine) Start() {
 	}
 	e.running = true
 	e.flags = make([]int, len(e.courses))
+	e.attempts = make([]int, len(e.courses))
+	e.lastLogs = make([]string, len(e.courses))
 	e.logs = make([]string, 0)
 	e.ctx, e.cancel = context.WithCancel(context.Background())
 	e.mu.Unlock()
+
+	e.addLog(fmt.Sprintf("开始抢课 — 共 %d 门课程", len(e.courses)))
+	for i, c := range e.courses {
+		name := c[0]
+		if len(c) > 1 {
+			name = c[1]
+		}
+		e.addLog(fmt.Sprintf("  [%d] %s — %s", i+1, name, c[0]))
+	}
 
 	go e.loop()
 }
@@ -86,10 +100,10 @@ func (e *Engine) Stop() {
 }
 
 func (e *Engine) loop() {
-	client := session.NewClient() // fresh client for the loop
+	client := session.NewClient()
 	client.SetHeader("Token", session.Get().Token)
 
-	loopCount := 0
+	round := 0
 
 	for {
 		select {
@@ -98,14 +112,17 @@ func (e *Engine) loop() {
 		default:
 		}
 
-		loopCount++
-		// every 4000 iterations (~400s at 0.1s interval), check & relogin
-		if loopCount%4000 == 0 {
+		round++
+
+		// Re-login every ~10 minutes (2000 rounds * 300ms)
+		if round%2000 == 0 {
+			e.addLog("保活：重新登录...")
 			if err := auth.ReloginIfNeeded(client); err != nil {
 				e.addLog("重登录失败: " + err.Error())
 				time.Sleep(1 * time.Second)
 				continue
 			}
+			e.addLog("登录状态正常")
 		}
 
 		e.mu.Lock()
@@ -115,7 +132,13 @@ func (e *Engine) loop() {
 		copy(delCourses, e.delCourses)
 		flags := make([]int, len(e.flags))
 		copy(flags, e.flags)
+		attempts := make([]int, len(e.attempts))
+		copy(attempts, e.attempts)
+		lastLogs := make([]string, len(e.lastLogs))
+		copy(lastLogs, e.lastLogs)
 		e.mu.Unlock()
+
+		anyChange := false
 
 		for j := range courses {
 			select {
@@ -128,22 +151,39 @@ func (e *Engine) loop() {
 				continue
 			}
 
+			e.mu.Lock()
+			e.attempts[j]++
+			attemptNum := e.attempts[j]
+			e.mu.Unlock()
+
+			// Log first attempt, then every 50th
+			if attemptNum == 1 || attemptNum%50 == 0 {
+				name := courses[j][0]
+				if len(courses[j]) > 1 {
+					name = courses[j][1]
+				}
+				e.addLog(fmt.Sprintf("[%s] 第 %d 次尝试...", name, attemptNum))
+			}
+
 			hasCapacity, err := CheckCapacity(client, courses[j][0])
 			if err != nil {
+				// Log capacity errors every 50 attempts to avoid spam
+				if attemptNum%50 == 0 {
+					e.addLog(fmt.Sprintf("[%s] 容量查询失败: %v", courses[j][0], err))
+				}
 				continue
 			}
 			if !hasCapacity {
 				continue
 			}
 
-			// delete conflict courses first
+			// Has capacity! Delete conflicts
 			if j < len(delCourses) {
 				for _, dc := range delCourses[j] {
 					DeleteVolunteer(client, dc)
 				}
 			}
 
-			// grab the course
 			classType := ""
 			campus := ""
 			if len(courses[j]) > 4 {
@@ -156,20 +196,29 @@ func (e *Engine) loop() {
 			}
 
 			if err := Volunteer(client, courses[j][0], classType, campus); err != nil {
+				if attemptNum%10 == 0 {
+					e.addLog(fmt.Sprintf("[%s] 选课失败: %v", courses[j][0], err))
+				}
 				continue
 			}
 
-			// mark as done
+			// Success
 			e.mu.Lock()
 			if j < len(e.flags) {
 				e.flags[j] = 1
 			}
 			e.mu.Unlock()
 
-			e.addLog("抢课成功: " + courses[j][1])
+			name := courses[j][0]
+			if len(courses[j]) > 1 {
+				name = courses[j][1]
+			}
+			e.addLog(fmt.Sprintf("✓ [%s] %s 抢课成功！(第 %d 次尝试)",
+				name, courses[j][0], attemptNum))
+			anyChange = true
 		}
 
-		// check if all done
+		// Check if all done
 		e.mu.Lock()
 		allDone := len(e.flags) > 0
 		for _, f := range e.flags {
@@ -181,9 +230,22 @@ func (e *Engine) loop() {
 		e.mu.Unlock()
 
 		if allDone {
-			e.addLog("所有课程抢课完成")
+			e.addLog("🎉 所有课程抢课完成！")
 			e.Stop()
 			return
+		}
+
+		// Status summary every 10 rounds
+		if round%10 == 0 && anyChange {
+			e.mu.Lock()
+			done := 0
+			for _, f := range e.flags {
+				if f == 1 {
+					done++
+				}
+			}
+			e.mu.Unlock()
+			e.addLog(fmt.Sprintf("进度: %d/%d", done, len(courses)))
 		}
 
 		time.Sleep(300 * time.Millisecond)
@@ -195,7 +257,7 @@ func (e *Engine) addLog(msg string) {
 	defer e.mu.Unlock()
 	t := time.Now().Format("15:04:05")
 	e.logs = append(e.logs, "["+t+"] "+msg)
-	if len(e.logs) > 200 {
-		e.logs = e.logs[len(e.logs)-200:]
+	if len(e.logs) > 500 {
+		e.logs = e.logs[len(e.logs)-500:]
 	}
 }
