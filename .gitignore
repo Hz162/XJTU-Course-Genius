@@ -5,6 +5,7 @@ Desktop.ini
 
 # ── IDE ──
 .idea/
+.vscode/
 
 # ── AI / Tooling ──
 .claude/
