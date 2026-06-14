@@ -269,22 +269,22 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Widget _buildLogo() {
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: const BoxDecoration(
-        borderRadius: BorderRadius.all(Radius.circular(14)),
-        gradient: primaryGradient,
-      ),
-      child: Center(
-        child: Image.asset('assets/logo.png',
-            width: 56,
-            height: 56,
-            errorBuilder: (_, __, ___) => const Text('西',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700))),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: Image.asset('assets/logo.png',
+          width: 56,
+          height: 56,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+              width: 56,
+              height: 56,
+              decoration: const BoxDecoration(
+                borderRadius: BorderRadius.all(Radius.circular(14)),
+                gradient: primaryGradient,
+              ),
+              child: const Center(
+                  child: Text('西',
+                      style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700)))),
       ),
     );
   }
