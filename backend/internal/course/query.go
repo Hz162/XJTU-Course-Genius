@@ -42,16 +42,21 @@ func setCache(classType, campus string, courses []CourseInfo) {
 func WarmupCache(client *resty.Client) {
 	s := session.Get()
 	types := []string{"TJKC", "FANKC", "FAWKC", "XGXK", "TYKC"}
-	for _, t := range types {
-		if _, ok := getCached(t, s.Campus); ok {
-			continue
-		}
-		cfg, ok := queryConfigs[t]
-		if !ok { continue }
-		isXGXK := t == "XGXK"
-		courses, _, err := fetchAllPages(client, cfg.URL, t, "", cfg.HasTCLists, isXGXK)
-		if err == nil {
-			setCache(t, s.Campus, courses)
+
+	// Warm up ALL campuses, not just current one
+	for _, campus := range s.CampusList {
+		for _, t := range types {
+			if _, ok := getCached(t, campus.Code); ok {
+				continue
+			}
+			cfg, ok := queryConfigs[t]
+			if !ok { continue }
+			isXGXK := t == "XGXK"
+			stdlog.Printf("[cache] warming up %s campus=%s", t, campus.Code)
+			courses, _, err := fetchAllPagesForCampus(client, cfg.URL, t, "", cfg.HasTCLists, isXGXK, campus.Code)
+			if err == nil {
+				setCache(t, campus.Code, courses)
+			}
 		}
 	}
 }
@@ -193,7 +198,7 @@ func queryAllTypes(client *resty.Client, keyword string) ([]CourseInfo, int, err
 			cfg, okCfg := queryConfigs[t]
 			if !okCfg { continue }
 			isXGXK := t == "XGXK"
-			courses, _, err := fetchAllPages(client, cfg.URL, t, "", cfg.HasTCLists, isXGXK)
+			courses, _, err := fetchAllPagesForCampus(client, cfg.URL, t, "", cfg.HasTCLists, isXGXK, campus)
 			if err == nil {
 				setCache(t, campus, courses)
 			}
@@ -218,13 +223,17 @@ func queryAllTypes(client *resty.Client, keyword string) ([]CourseInfo, int, err
 }
 
 func fetchAllPages(client *resty.Client, endpoint, classType, keyword string, hasTCLists, isXGXK bool) ([]CourseInfo, int, error) {
+	return fetchAllPagesForCampus(client, endpoint, classType, keyword, hasTCLists, isXGXK, session.Get().Campus)
+}
+
+func fetchAllPagesForCampus(client *resty.Client, endpoint, classType, keyword string, hasTCLists, isXGXK bool, campus string) ([]CourseInfo, int, error) {
 	s := session.Get()
 	var all []CourseInfo
 
 	querySetting := map[string]interface{}{
 		"data": map[string]string{
 			"studentCode":       s.StudentCode,
-			"campus":            s.Campus,
+			"campus":            campus,
 			"electiveBatchCode": s.BatchCode,
 			"isMajor":           "1",
 			"teachingClassType": classType,
