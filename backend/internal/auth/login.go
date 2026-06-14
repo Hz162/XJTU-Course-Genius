@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	stdlog "log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -141,8 +142,11 @@ func FullLoginWithCaptcha(client *resty.Client, account, password, captcha strin
 	var casURL, execution, mfaState, fpID string
 	var encPwd string
 
-	// Captcha retry: reuse stored CAS session (same as captcha image)
+	stdlog.Printf("[captcha] FullLogin: captcha=%q (len=%d) captchaCASURL set=%v", captcha, len(captcha), captchaCASURL != "")
+	// Captcha retry: reuse stored CAS session/execution (execution was NOT consumed
+	// because captcha_required check happened BEFORE postCASRaw)
 	if captcha != "" && captchaCASURL != "" {
+		stdlog.Println("[captcha] retry: reusing stored execution (was never consumed)")
 		casURL = captchaCASURL
 		execution = captchaExecution
 		mfaState = captchaMFAState
@@ -182,14 +186,19 @@ func FullLoginWithCaptcha(client *resty.Client, account, password, captcha strin
 		}
 
 		// Store CAS session for potential captcha retry
+		stdlog.Println("[captcha] storing CAS session, casURL=", casURL[:80], "execution=", execution[:40])
 		captchaCASURL = casURL
 		captchaExecution = execution
 		captchaMFAState = mfaState
 		captchaFpID = fpID
 	}
 
-	// Always try CAS login — let CAS decide if captcha is needed.
-	// If CAS shows captcha page, postCASRaw returns CaptchaNeededError.
+	// Check captcha BEFORE consuming execution (matching XJTUToolBox logic)
+	if IsCaptchaRequired() && captcha == "" {
+		stdlog.Println("[captcha] failCount>=3, captcha empty, returning REQUIRE_CAPTCHA before POST")
+		return &CaptchaNeededError{}
+	}
+
 	return postCASRaw(httpClient, casURL, account, encPwd, execution, mfaState, fpID, captcha, "")
 }
 

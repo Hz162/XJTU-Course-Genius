@@ -123,7 +123,7 @@ func fetchAllPages(client *resty.Client, endpoint, classType, keyword string, ha
 	}
 	json.Unmarshal(resp.Body(), &j)
 
-	parsed := parseDataList(j.DataList, classType, hasTCLists, false)
+	parsed := parseDataList(j.DataList, classType, hasTCLists, isXGXK)
 	all = append(all, parsed...)
 
 	totalCount := 0
