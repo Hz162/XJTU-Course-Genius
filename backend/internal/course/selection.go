@@ -30,6 +30,12 @@ func NewEngine(client *resty.Client) *Engine {
 	return &Engine{client: client}
 }
 
+func (e *Engine) SetClient(client *resty.Client) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.client = client
+}
+
 func (e *Engine) SetCourses(courses [][]string, delCourses [][]string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -98,7 +104,12 @@ func (e *Engine) Stop() {
 }
 
 func (e *Engine) loop() {
-	client := session.NewClient()
+	// Use the same client that was authenticated during login (saved in engine)
+	// session.NewClient() creates a fresh jar that may not have proper cookies
+	client := e.client
+	if client == nil {
+		client = session.NewClient()
+	}
 	client.SetHeader("Token", session.Get().Token)
 
 	round := 0

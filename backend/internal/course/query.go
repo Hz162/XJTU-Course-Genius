@@ -3,6 +3,7 @@ package course
 import (
 	"encoding/json"
 	"fmt"
+	stdlog "log"
 	"math"
 	"time"
 
@@ -225,8 +226,10 @@ func CheckCapacity(client *resty.Client, teachingClassID string) (bool, error) {
 		}).
 		Get(url)
 	if err != nil {
+		stdlog.Printf("[sel] CheckCapacity %s: HTTP err=%v", teachingClassID, err)
 		return false, err
 	}
+	stdlog.Printf("[sel] CheckCapacity %s: status=%d url=%s token=%s", teachingClassID, resp.StatusCode(), resp.Request.URL, s.Token[:20])
 	var j struct {
 		Data struct {
 			NumberOfSelected string `json:"numberOfSelected"`
@@ -234,11 +237,14 @@ func CheckCapacity(client *resty.Client, teachingClassID string) (bool, error) {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(resp.Body(), &j); err != nil {
+		stdlog.Printf("[sel] CheckCapacity %s: parse err=%v body=%s", teachingClassID, err, safeSlice(string(resp.Body()), 200))
 		return false, err
 	}
 	selected := parseInt(j.Data.NumberOfSelected)
 	capacity := parseInt(j.Data.ClassCapacity)
-	return selected < capacity, nil
+	hasRoom := selected < capacity
+	stdlog.Printf("[sel] CheckCapacity %s: %d/%d hasRoom=%v", teachingClassID, selected, capacity, hasRoom)
+	return hasRoom, nil
 }
 
 // ── Volunteer / Delete ──
@@ -258,10 +264,35 @@ func Volunteer(client *resty.Client, teachingClassID, classType, campus string) 
 	}
 	xkBytes, _ := json.Marshal(xk)
 	url := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/elective/volunteer.do", baseURL)
-	_, err := client.R().
+	resp, err := client.R().
 		SetFormData(map[string]string{"addParam": string(xkBytes)}).
 		Post(url)
-	return err
+	if err != nil {
+		stdlog.Printf("[sel] Volunteer %s: HTTP err=%v", teachingClassID, err)
+		return err
+	}
+	stdlog.Printf("[sel] Volunteer %s: status=%d body=%s", teachingClassID, resp.StatusCode(), safeSlice(string(resp.Body()), 200))
+	var vj struct {
+		Code interface{} `json:"code"`
+		Msg  string      `json:"msg"`
+	}
+	if json.Unmarshal(resp.Body(), &vj) == nil {
+		ok := false
+		switch c := vj.Code.(type) {
+		case float64:
+			ok = c == 0 || c == 1
+		case string:
+			ok = c == "0" || c == "1"
+		}
+		if ok {
+			return nil
+		}
+		if vj.Msg != "" {
+			return fmt.Errorf("选课失败: %s", vj.Msg)
+		}
+		return fmt.Errorf("选课失败: unknown error")
+	}
+	return nil
 }
 
 func DeleteVolunteer(client *resty.Client, teachingClassID string) error {
@@ -277,13 +308,25 @@ func DeleteVolunteer(client *resty.Client, teachingClassID string) error {
 	}
 	txkcBytes, _ := json.Marshal(txkc)
 	url := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/elective/deleteVolunteer.do", baseURL)
-	_, err := client.R().
+	resp, err := client.R().
 		SetQueryParams(map[string]string{
 			"timestamp":   fmt.Sprintf("%d", timestamp()),
 			"deleteParam": string(txkcBytes),
 		}).
 		Get(url)
-	return err
+	if err != nil {
+		stdlog.Printf("[sel] DeleteVolunteer %s: HTTP err=%v", teachingClassID, err)
+		return err
+	}
+	stdlog.Printf("[sel] DeleteVolunteer %s: status=%d body=%s", teachingClassID, resp.StatusCode(), safeSlice(string(resp.Body()), 200))
+	return nil
+}
+
+func safeSlice(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max]
 }
 
 func parseInt(s string) int {

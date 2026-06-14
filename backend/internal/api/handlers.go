@@ -2,7 +2,7 @@ package api
 
 import (
 	"encoding/json"
-	"log"
+	stdlog "log"
 	"net/http"
 
 	"xjtu-course-genius/internal/auth"
@@ -50,6 +50,7 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Captcha retry: reuse the saved client (same CAS session/execution as captcha image)
 	var client *resty.Client
+	stdlog.Printf("[captcha] HandleLogin: captcha=%q (len=%d) hasSavedClient=%v", req.Captcha, len(req.Captcha), s.client != nil)
 	if req.Captcha != "" && s.client != nil {
 		client = s.client
 	} else {
@@ -67,6 +68,7 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		// Save client cookies so MFA/account-choice/captcha flows can continue
 		session.SaveCookiesFromHTTP(client.GetClient())
 		s.client = client
+		s.engine.SetClient(client)
 		if capErr, ok := err.(*auth.CaptchaNeededError); ok {
 			resp := map[string]interface{}{
 				"captcha_required": true,
@@ -104,6 +106,7 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	session.SaveCookiesFromHTTP(client.GetClient())
 	s.client = client
+		s.engine.SetClient(client)
 
 	writeJSON(w, 200, map[string]interface{}{
 		"success":     true,
@@ -157,6 +160,7 @@ func (s *Server) HandleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		session.SaveCookies(client)
 		client.SetHeader("Token", session.Get().Token)
 		s.client = client
+		s.engine.SetClient(client)
 		writeJSON(w, 200, map[string]interface{}{
 			"success":     true,
 			"studentCode": session.Get().StudentCode,
@@ -175,6 +179,7 @@ func (s *Server) HandleMFAVerify(w http.ResponseWriter, r *http.Request) {
 	session.SaveCookies(client)
 		client.SetHeader("Token", session.Get().Token)
 	s.client = client
+		s.engine.SetClient(client)
 
 	writeJSON(w, 200, map[string]interface{}{
 		"success":     true,
@@ -207,6 +212,7 @@ func (s *Server) HandleChooseAccount(w http.ResponseWriter, r *http.Request) {
 	session.SaveCookies(client)
 		client.SetHeader("Token", session.Get().Token)
 	s.client = client
+		s.engine.SetClient(client)
 	writeJSON(w, 200, map[string]interface{}{
 		"success":     true,
 		"studentCode": session.Get().StudentCode,
@@ -338,6 +344,7 @@ func (s *Server) HandleRelogin(w http.ResponseWriter, r *http.Request) {
 	session.SaveCookies(client)
 		client.SetHeader("Token", session.Get().Token)
 	s.client = client
+		s.engine.SetClient(client)
 	writeJSON(w, 200, map[string]string{"status": "ok"})
 }
 
@@ -348,5 +355,5 @@ func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 }
 
 func init() {
-	log.SetFlags(log.Ltime)
+	stdlog.SetFlags(stdlog.Ltime)
 }
