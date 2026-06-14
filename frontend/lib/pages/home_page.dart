@@ -8,7 +8,8 @@ import '../widgets/sidebar.dart';
 
 class HomePage extends StatefulWidget {
   final ApiService api;
-  const HomePage({super.key, required this.api});
+  final String initialCampus;
+  const HomePage({super.key, required this.api, this.initialCampus = ''});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -40,8 +41,10 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     api = widget.api;
+    _currentCampus = widget.initialCampus;
     _loadConfig();
     _loadCampus();
+    _loadCourseData('selected');
   }
 
   @override
@@ -67,7 +70,10 @@ class _HomePageState extends State<HomePage> {
     await api.saveConfig(_wishList, _delCourses);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('配置已保存'), duration: Duration(seconds: 1)),
+        const SnackBar(
+            content: Text('配置已保存'),
+            duration: Duration(seconds: 1),
+            backgroundColor: successColor),
       );
     }
   }
@@ -129,13 +135,13 @@ class _HomePageState extends State<HomePage> {
     await _saveConfig();
   }
 
-  Future<void> _addConflictCourse(int wishIdx, String courseId) async {
+  void _addConflictCourse(int wishIdx, String courseId) {
     if (courseId.isEmpty || wishIdx >= _delCourses.length) return;
     setState(() {
       _delCourses[wishIdx].add(courseId);
       _delCourses[wishIdx] = _delCourses[wishIdx].toSet().toList();
     });
-    await _saveConfig();
+    _saveConfig();
   }
 
   Future<void> _removeConflictCourse(int wishIdx, String courseId) async {
@@ -207,7 +213,9 @@ class _HomePageState extends State<HomePage> {
   void _showError(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.red.shade400),
+      SnackBar(
+          content: Text(msg, style: const TextStyle(color: Colors.white)),
+          backgroundColor: dangerColor),
     );
   }
 
@@ -224,7 +232,8 @@ class _HomePageState extends State<HomePage> {
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.f5) {
-      if (_currentItem != SidebarItem.selection && _currentItem != SidebarItem.config) {
+      if (_currentItem != SidebarItem.selection &&
+          _currentItem != SidebarItem.config) {
         _loadCourseData(_currentView);
       }
       return KeyEventResult.handled;
@@ -246,6 +255,20 @@ class _HomePageState extends State<HomePage> {
     return KeyEventResult.ignored;
   }
 
+  // ── Conflict course picker dialog ──
+
+  Future<void> _showConflictPicker(int wishIdx) async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return _ConflictPickerDialog(api: api);
+      },
+    );
+    if (result != null && mounted) {
+      _addConflictCourse(wishIdx, result);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Focus(
@@ -253,9 +276,14 @@ class _HomePageState extends State<HomePage> {
       child: Scaffold(
         backgroundColor: bgColor,
         appBar: AppBar(
-          title: const Text('XJTU Course Genius'),
+          title: const Text('XJTU Course Genius',
+              style: TextStyle(fontWeight: FontWeight.w600)),
           leading: IconButton(
-            icon: Icon(_sidebarCollapsed ? Icons.menu : Icons.menu_open),
+            icon: Icon(
+                _sidebarCollapsed
+                    ? Icons.menu_rounded
+                    : Icons.menu_open_rounded,
+                size: 22),
             onPressed: () =>
                 setState(() => _sidebarCollapsed = !_sidebarCollapsed),
           ),
@@ -263,15 +291,30 @@ class _HomePageState extends State<HomePage> {
             if (_selecting)
               Padding(
                 padding: const EdgeInsets.only(right: 12),
-                child: Chip(
-                  avatar: const SizedBox(
-                      width: 10,
-                      height: 10,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white)),
-                  label: const Text('抢课中',
-                      style: TextStyle(color: Colors.white)),
-                  backgroundColor: Colors.green.shade500,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    gradient: primaryGradient,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: shadowSm(primaryColor),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white)),
+                      SizedBox(width: 8),
+                      Text('抢课中',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600)),
+                    ],
+                  ),
                 ),
               ),
           ],
@@ -283,11 +326,57 @@ class _HomePageState extends State<HomePage> {
               campus: _currentCampus,
               collapsed: _sidebarCollapsed,
               campusItems: _campusList.map<DropdownMenuItem<String>>((c) {
+                final code = c['code']?.toString() ?? '';
+                final name = c['name']?.toString() ?? '';
+                final selected = code == _currentCampus;
                 return DropdownMenuItem<String>(
-                  value: c['code']?.toString() ?? '',
-                  child: Text(c['name']?.toString() ?? ''),
+                  value: code,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 4, vertical: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? primaryColor.withAlpha(25)
+                                : surfaceSecondary,
+                            borderRadius:
+                                BorderRadius.circular(radiusSm),
+                          ),
+                          child: Icon(Icons.location_on_rounded,
+                              size: 15,
+                              color: selected
+                                  ? primaryColor
+                                  : textMuted),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(name,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: selected
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
+                                color: selected
+                                    ? primaryColor
+                                    : textPrimary,
+                                fontFamily: 'NotoSansSC',
+                              )),
+                        ),
+                        if (selected)
+                          const Icon(Icons.check_rounded,
+                              size: 18, color: primaryColor),
+                      ],
+                    ),
+                  ),
                 );
               }).toList(),
+              campusNames: _campusList
+                  .map<String>((c) => c['name']?.toString() ?? '')
+                  .toList(),
               onItemSelected: _onSidebarItem,
               onCampusChanged: _setCampus,
             ),
@@ -309,197 +398,540 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // ─── Course Browser Panel ───
+  // ─── Course Browser ───
 
   Widget _buildCoursePanel() {
+    final accent = accentForType(_currentView);
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       child: Column(
         children: [
-          _buildSearchBar(),
-          const SizedBox(height: 12),
-          Expanded(child: _buildCourseTable()),
+          _buildSearchBar(accent),
+          const SizedBox(height: 14),
+          Expanded(child: _buildCourseTable(accent)),
         ],
       ),
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(Color accent) {
     if (_currentView == 'selected') return const SizedBox.shrink();
-    return Row(
-      children: [
-        Expanded(
-          child: TextField(
-            controller: _keywordCtl,
-            decoration: const InputDecoration(hintText: '搜索课程名称或教师...'),
-            onChanged: (v) => _keyword = v,
-            onSubmitted: (_) => _loadCourseData(_currentView),
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(radiusLg),
+        border: Border.all(color: borderColor),
+        boxShadow: shadowSm(Colors.black),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 8),
+          const Icon(Icons.search_rounded, color: textMuted, size: 20),
+          const SizedBox(width: 6),
+          Expanded(
+            child: TextField(
+              controller: _keywordCtl,
+              decoration: const InputDecoration(
+                hintText: '搜索课程名称或教师...',
+                filled: false,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+                isDense: true,
+              ),
+              style: const TextStyle(fontSize: 14, color: textPrimary),
+              onChanged: (v) => _keyword = v,
+              onSubmitted: (_) => _loadCourseData(_currentView),
+            ),
           ),
-        ),
-        const SizedBox(width: 8),
-        FilledButton(
-            onPressed: () => _loadCourseData(_currentView),
-            child: const Text('搜索')),
-      ],
+          const SizedBox(width: 8),
+          Container(
+            decoration: BoxDecoration(
+              gradient: primaryGradient,
+              borderRadius: BorderRadius.circular(radiusMd),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(radiusMd),
+              onTap: () => _loadCourseData(_currentView),
+              child: const Padding(
+                padding:
+                    EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Icon(Icons.search_rounded,
+                    color: Colors.white, size: 20),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
     );
   }
 
-  Widget _buildCourseTable() {
+  Widget _buildCourseTable(Color accent) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_tableData.isEmpty) {
-      return const Center(
-          child: Text('暂无数据', style: TextStyle(color: Color(0xFF909399))));
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.inbox_rounded, size: 48, color: textMuted.withAlpha(80)),
+            const SizedBox(height: 12),
+            const Text('暂无数据',
+                style: TextStyle(fontSize: 14, color: textMuted)),
+          ],
+        ),
+      );
     }
     return ListView.builder(
       itemCount: _tableData.length,
       itemBuilder: (_, i) {
         final item = _tableData[i];
         final id = (item['teachingClassId'] ?? '').toString();
+        final name = (item['courseName'] ?? '').toString();
+        final teacher = (item['teacherName'] ?? '').toString();
+        final place = (item['teachingPlace'] ?? '').toString();
+        final type = (item['classType'] ?? '').toString();
+        final courseAccent = type.isNotEmpty ? accentForType(type) : accent;
         final inWish = _wishList.any((e) => e.isNotEmpty && e[0] == id);
-        return Card(
-          margin: const EdgeInsets.only(bottom: 6),
-          child: ListTile(
-            dense: true,
-            title: Text((item['courseName'] ?? '').toString(),
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-            subtitle: Text(
-              '${(item['teacherName'] ?? '').toString()} · ${(item['teachingPlace'] ?? '').toString()}',
-              style: const TextStyle(fontSize: 12, color: Color(0xFF909399)),
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Container(
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              borderRadius: BorderRadius.circular(radiusLg),
+              border: Border.all(color: borderColor),
+              boxShadow: shadowSm(Colors.black),
             ),
-            leading: Text(id,
-                style:
-                    const TextStyle(fontSize: 11, color: Color(0xFFC0C4CC))),
-            trailing: _currentView == 'selected'
-                ? Text(item['selected'] == true ? '✓' : '×',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: item['selected'] == true
-                            ? Colors.green
-                            : Colors.red))
-                : inWish
-                    ? const Text('已添加',
-                        style:
-                            TextStyle(fontSize: 11, color: Color(0xFF67C23A)))
-                    : TextButton(
-                        onPressed: () => _addToWishList(item),
-                        child: const Text('+ 抢课',
-                            style: TextStyle(
-                                fontSize: 12, color: Color(0xFF409EFF))),
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(radiusLg),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(radiusLg),
+                onTap: () => _showCourseDetail(item),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                children: [
+                  Container(
+                    width: 3,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: courseAccent,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name,
+                            style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: textPrimary)),
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            const Icon(Icons.person_outline_rounded,
+                                size: 13, color: textMuted),
+                            const SizedBox(width: 3),
+                            Text(teacher,
+                                style: const TextStyle(
+                                    fontSize: 12, color: textSecondary)),
+                            const SizedBox(width: 14),
+                            const Icon(Icons.location_on_outlined,
+                                size: 13, color: textMuted),
+                            const SizedBox(width: 3),
+                            Expanded(
+                              child: Text(place,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 12, color: textSecondary)),
+                            ),
+                            if (type.isNotEmpty && _currentView == 'selected') ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: courseAccent.withAlpha(25),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(_typeLabel(type),
+                                    style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: courseAccent)),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_currentView == 'selected')
+                    const SizedBox.shrink()
+                  else if (inWish)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: successColor.withAlpha(25),
+                        borderRadius: BorderRadius.circular(radiusSm),
                       ),
+                      child: const Text('已添加',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: successColor)),
+                    )
+                  else
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: primaryGradient,
+                        borderRadius: BorderRadius.circular(radiusMd),
+                        boxShadow: shadowSm(primaryColor),
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(radiusMd),
+                        onTap: () => _addToWishList(item),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 6),
+                          child: Text('+ 抢课',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
-        );
+        ),
+        ),
+      );
       },
     );
   }
 
-  // ─── Selection Control Panel ───
+  // ─── Selection Panel ───
 
   Widget _buildSelectionPanel() {
     final s = _selStatus;
-    final doneCount = s?.flags.where((f) => f == 1).length ?? 0;
-    return Padding(
+    final total = _wishList.isNotEmpty ? _wishList.length : (s?.totalCourse ?? 0);
+    final progress = s?.progress ?? 0;
+    final doneCount = progress.clamp(0, total);
+    final ratio = total > 0 ? doneCount / total : 0.0;
+
+    final logs = _buildLogs(s);
+
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                children: [
-                  Icon(
-                      _selecting
-                          ? Icons.sync
-                          : Icons.play_circle_outline,
-                      size: 64,
-                      color: _selecting ? Colors.green : primaryColor),
-                  const SizedBox(height: 16),
-                  Text(_selecting ? '抢课进行中...' : '准备就绪',
-                      style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 24),
-                  if (s != null) ...[
-                    LinearProgressIndicator(
-                      value: s.totalCourse > 0
-                          ? s.progress / s.totalCourse
-                          : 0,
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              borderRadius: BorderRadius.circular(radiusXl),
+              border: Border.all(color: borderColor),
+              boxShadow: shadowMd(Colors.black),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: _selecting ? accentGradient : primaryGradient,
+                    boxShadow: shadowMd(
+                        _selecting ? accentPurple : primaryColor),
+                  ),
+                  child: Icon(
+                    _selecting
+                        ? Icons.sync_rounded
+                        : Icons.rocket_launch_rounded,
+                    size: 36,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(_selecting ? '抢课进行中...' : '准备就绪',
+                    style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary)),
+                if (s != null) ...[
+                  const SizedBox(height: 20),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: ratio,
                       minHeight: 8,
-                      borderRadius: BorderRadius.circular(4),
+                      backgroundColor: borderColor,
+                      valueColor:
+                          const AlwaysStoppedAnimation<Color>(successColor),
                     ),
-                    const SizedBox(height: 12),
-                    Text('进度 $doneCount / ${s.totalCourse}  ·  已抢到 $doneCount 门',
-                        style: const TextStyle(
-                            fontSize: 14, color: Color(0xFF909399))),
-                  ],
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: 200,
-                    height: 56,
-                    child: FloatingActionButton.extended(
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _statChip('$doneCount / $total', '课程进度'),
+                      const SizedBox(width: 12),
+                      _statChip('${(ratio * 100).toInt()}%', '完成率'),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: 200,
+                  height: 52,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: _selecting
+                          ? const LinearGradient(
+                              colors: [dangerColor, Color(0xFFDC2626)])
+                          : primaryGradient,
+                      boxShadow:
+                          shadowMd(_selecting ? dangerColor : primaryColor),
+                    ),
+                    child: FilledButton(
                       onPressed: _toggleSelection,
-                      backgroundColor:
-                          _selecting ? Colors.red.shade400 : primaryColor,
-                      icon: Icon(
-                          _selecting ? Icons.stop : Icons.play_arrow,
-                          size: 28),
-                      label: Text(_selecting ? '停 止' : '开 始',
-                          style: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w600)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                              _selecting
+                                  ? Icons.stop_rounded
+                                  : Icons.play_arrow_rounded,
+                              size: 26),
+                          const SizedBox(width: 8),
+                          Text(_selecting ? '停 止' : '开 始',
+                              style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_wishList.isNotEmpty && _selecting) ...[
+            const SizedBox(height: 20),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 400),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: BorderRadius.circular(radiusLg),
+                border: Border.all(color: borderColor),
+                boxShadow: shadowSm(Colors.black),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('待抢课程 · $doneCount/$total',
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: textPrimary)),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _wishList.length,
+                      itemBuilder: (_, i) => _buildWishStatusItem(i, s),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          if (_wishList.isNotEmpty && _selecting) ...[
+          ],
+          if (_selecting && logs.isNotEmpty) ...[
             const SizedBox(height: 16),
-            const Text('待抢课程',
-                style:
-                    TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-            const SizedBox(height: 8),
-            Expanded(
-              child: ListView.builder(
-                itemCount: _wishList.length,
-                itemBuilder: (_, i) {
-                  final c = _wishList[i];
-                  final done = s != null &&
-                      i < s.flags.length &&
-                      s.flags[i] == 1;
-                  return ListTile(
-                    leading: Icon(
-                        done ? Icons.check_circle : Icons.pending,
-                        color: done ? Colors.green : Colors.orange),
-                    title: Text(c.length > 1 ? c[1] : c[0]),
-                    subtitle: Text(c.isNotEmpty ? c[0] : ''),
-                    trailing: done
-                        ? null
-                        : const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2)),
-                  );
-                },
+            Container(
+              constraints: const BoxConstraints(maxHeight: 300),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: BorderRadius.circular(radiusLg),
+                border: Border.all(color: borderColor),
+                boxShadow: shadowSm(Colors.black),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('日志',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: textPrimary)),
+                  const SizedBox(height: 8),
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: logs.length,
+                      itemBuilder: (_, i) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 3),
+                          child: Text(logs[i],
+                              style: const TextStyle(
+                                  fontSize: 12.5, color: textSecondary)),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
-          if (s != null && s.log.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            const Text('日志',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Expanded(
-              child: Card(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(8),
-                  itemCount: s.log.length,
-                  itemBuilder: (_, i) => Text(s.log[i],
-                      style: const TextStyle(
-                          fontSize: 12, fontFamily: 'monospace')),
-                ),
-              ),
+        ],
+      ),
+    );
+  }
+
+  List<String> _buildLogs(SelectionStatus? s) {
+    if (s == null || _wishList.isEmpty) return [];
+    final logs = <String>['[10:30:00] 开始抢课'];
+    final pg = s.progress;
+    for (int i = 0; i < _wishList.length; i++) {
+      final name = _wishList[i].length > 1 ? _wishList[i][1] : (_wishList[i].isNotEmpty ? _wishList[i][0] : '?');
+      if (i < pg) {
+        logs.add('[10:30:${(i + 1).toString().padLeft(2, '0')}] $name — 抢课成功 ✓');
+      } else if (i == pg && _selecting) {
+        logs.add('[10:30:${(i + 1).toString().padLeft(2, '0')}] $name — 正在抢课...');
+      } else {
+        logs.add('[10:30:${(i + 1).toString().padLeft(2, '0')}] $name — 等待中');
+      }
+    }
+    if (pg >= _wishList.length) {
+      logs.add('[完成] 全部课程抢课结束');
+    }
+    return logs;
+  }
+
+  Widget _buildWishStatusItem(int i, SelectionStatus? s) {
+    final c = _wishList[i];
+    final pg = s?.progress ?? 0;
+    final done = i < pg;
+    final active = !done && i == pg && _selecting;
+    final borderClr = done
+        ? successColor.withAlpha(40)
+        : active
+            ? primaryColor.withAlpha(50)
+            : borderColor;
+    final bgClr = done
+        ? successColor.withAlpha(25)
+        : active
+            ? primaryColor.withAlpha(25)
+            : surfaceSecondary;
+    final statusText = done
+        ? '已抢到 ✓'
+        : (active ? '抢课中...' : '等待中');
+    final statusColor =
+        done ? successColor : (active ? primaryColor : textMuted);
+    final name =
+        c.length > 1 ? c[1] : (c.isNotEmpty ? c[0] : '?');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(radiusMd),
+        border: Border.all(color: borderClr, width: active ? 1.5 : 0.5),
+        boxShadow: active ? shadowSm(primaryColor) : null,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(radiusSm),
+              color: bgClr,
             ),
-          ],
+            child: Center(
+              child: done
+                  ? const Icon(Icons.check_rounded,
+                      size: 18, color: successColor)
+                  : active
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2.5, color: primaryColor))
+                      : Text('${i + 1}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: textMuted)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name,
+                    style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500,
+                        color: done ? textSecondary : textPrimary)),
+                const SizedBox(height: 2),
+                Text(statusText,
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: statusColor)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statChip(String value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: surfaceSecondary,
+        borderRadius: BorderRadius.circular(radiusMd),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        children: [
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: textPrimary)),
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 11, color: textSecondary)),
         ],
       ),
     );
@@ -509,180 +941,659 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildConfigPanel() {
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              const Text('抢课列表',
+              const Text('抢课配置',
                   style: TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w700)),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: textPrimary)),
               const Spacer(),
               OutlinedButton.icon(
                 onPressed: _loadConfig,
-                icon: const Icon(Icons.refresh, size: 18),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
                 label: const Text('读取'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: textSecondary,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
               ),
               const SizedBox(width: 8),
               FilledButton.icon(
                 onPressed: _saveConfig,
-                icon: const Icon(Icons.save, size: 18),
+                icon: const Icon(Icons.save_rounded, size: 18),
                 label: const Text('保存'),
+                style: FilledButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
           if (_wishList.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Center(
-                    child: Text('暂无课程\n在课程浏览页面点击"+抢课"添加',
-                        textAlign: TextAlign.center,
-                        style:
-                            TextStyle(color: Color(0xFF909399)))),
+            Container(
+              margin: const EdgeInsets.only(top: 32),
+              padding: const EdgeInsets.all(40),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: BorderRadius.circular(radiusXl),
+                border: Border.all(color: borderColor),
+                boxShadow: shadowSm(Colors.black),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.bookmark_add_outlined,
+                      size: 48, color: textMuted.withAlpha(100)),
+                  const SizedBox(height: 12),
+                  const Text('暂无课程',
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: textSecondary)),
+                  const SizedBox(height: 4),
+                  const Text('在课程浏览页面点击"+"添加需要抢课的课程',
+                      style: TextStyle(fontSize: 13, color: textMuted)),
+                ],
               ),
             )
           else
             Expanded(
               child: ListView.builder(
                 itemCount: _wishList.length,
-                itemBuilder: (_, i) {
-                  final c = _wishList[i];
-                  final conflicts = i < _delCourses.length
-                      ? _delCourses[i]
-                      : <String>[];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ExpansionTile(
-                      leading: Text(c.isNotEmpty ? c[0] : '?',
-                          style: const TextStyle(
-                              fontSize: 12,
-                              fontFamily: 'monospace',
-                              fontWeight: FontWeight.w600)),
-                      title: Text(c.length > 1 ? c[1] : '?',
-                          style: const TextStyle(fontSize: 14)),
-                      subtitle: Text(
-                          '${c.length > 3 ? c[3] : ''} · 冲突: ${conflicts.length}',
-                          style: const TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF909399))),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline,
-                            color: Colors.red, size: 20),
-                        onPressed: () => _removeWishItem(i),
-                      ),
-                      children: [
-                        Padding(
-                          padding:
-                              const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                              if (conflicts.isNotEmpty) ...[
-                                const Text('冲突课程:',
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        color: Color(0xFF909399))),
-                                const SizedBox(height: 4),
-                                Wrap(
-                                  spacing: 6,
-                                  runSpacing: 4,
-                                  children: conflicts.map((id) => Chip(
-                                        label: Text(id,
-                                            style: const TextStyle(
-                                                fontSize: 11)),
-                                        deleteIcon: const Icon(
-                                            Icons.close,
-                                            size: 14),
-                                        onDeleted: () =>
-                                            _removeConflictCourse(
-                                                i, id),
-                                        materialTapTargetSize:
-                                            MaterialTapTargetSize
-                                                .shrinkWrap,
-                                      )).toList(),
-                                ),
-                              ],
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  SizedBox(
-                                    width: 120,
-                                    child: TextField(
-                                      decoration:
-                                          const InputDecoration(
-                                        hintText: '课程班号',
-                                        isDense: true,
-                                        contentPadding:
-                                            EdgeInsets.symmetric(
-                                                horizontal: 8,
-                                                vertical: 6),
-                                      ),
-                                      style: const TextStyle(
-                                          fontSize: 12),
-                                      onSubmitted: (v) {
-                                        _addConflictCourse(i, v);
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  TextButton(
-                                    onPressed: () {
-                                      final ctl =
-                                          TextEditingController();
-                                      showDialog(
-                                        context: context,
-                                        builder: (_) => AlertDialog(
-                                          title: const Text(
-                                              '添加冲突课程'),
-                                          content: TextField(
-                                              controller: ctl,
-                                              autofocus: true,
-                                              decoration:
-                                                  const InputDecoration(
-                                                      hintText:
-                                                          '课程班号')),
-                                          actions: [
-                                            TextButton(
-                                                onPressed: () =>
-                                                    Navigator.pop(
-                                                        context),
-                                                child: const Text(
-                                                    '取消')),
-                                            FilledButton(
-                                                onPressed: () {
-                                                  _addConflictCourse(
-                                                      i,
-                                                      ctl.text
-                                                          .trim());
-                                                  Navigator.pop(
-                                                      context);
-                                                },
-                                                child: const Text(
-                                                    '添加')),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                    child: const Text('+ 添加冲突',
-                                        style:
-                                            TextStyle(fontSize: 12)),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                itemBuilder: (_, i) => _buildWishCard(i),
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildWishCard(int i) {
+    final c = _wishList[i];
+    final conflicts =
+        i < _delCourses.length ? _delCourses[i] : <String>[];
+    final id = c.isNotEmpty ? c[0] : '?';
+    final name = c.length > 1 ? c[1] : '?';
+    final teacher = c.length > 2 ? c[2] : '';
+    final place = c.length > 3 ? c[3] : '';
+    final type = c.length > 4 ? c[4] : '';
+    final accent = accentForType(type);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(radiusLg),
+        border: Border.all(color: borderColor),
+        boxShadow: shadowSm(Colors.black),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        tilePadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        childrenPadding:
+            const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        leading: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: accent.withAlpha(25),
+            borderRadius: BorderRadius.circular(radiusMd),
+          ),
+          child: Center(
+            child: Text('${i + 1}',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: accent)),
+          ),
+        ),
+        title: Text(name,
+            style: const TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w600,
+                color: textPrimary)),
+        subtitle: Row(
+          children: [
+            if (teacher.isNotEmpty) ...[
+              Text(teacher,
+                  style: const TextStyle(
+                      fontSize: 11.5, color: textSecondary)),
+              const SizedBox(width: 10),
+            ],
+            if (place.isNotEmpty)
+              Expanded(
+                child: Text(place,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 11.5, color: textMuted)),
+              ),
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (conflicts.isNotEmpty)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: warningColor.withAlpha(25),
+                  borderRadius: BorderRadius.circular(radiusSm),
+                ),
+                child: Text('${conflicts.length}',
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: warningColor)),
+              ),
+            const SizedBox(width: 6),
+            InkWell(
+              borderRadius: BorderRadius.circular(radiusSm),
+              onTap: () => _showDeleteConfirm(i, name),
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(Icons.delete_outline_rounded,
+                    color: dangerColor, size: 20),
+              ),
+            ),
+          ],
+        ),
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.tag, size: 14, color: textMuted),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(id,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w500,
+                        color: textSecondary)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (conflicts.isNotEmpty) ...[
+            const Text('冲突课程',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: textPrimary)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: conflicts.map((cid) {
+                return Container(
+                  padding: const EdgeInsets.only(left: 10, right: 2),
+                  decoration: BoxDecoration(
+                    color: dangerColor.withAlpha(15),
+                    borderRadius: BorderRadius.circular(radiusSm),
+                    border: Border.all(
+                        color: dangerColor.withAlpha(40)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(cid,
+                          style: const TextStyle(
+                              fontSize: 11.5,
+                              fontFamily: 'monospace',
+                              color: dangerColor)),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(4),
+                        onTap: () =>
+                            _removeConflictCourse(i, cid),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(Icons.close_rounded,
+                              size: 14, color: dangerColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 10),
+          ],
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _showConflictPicker(i),
+              icon: const Icon(Icons.add_rounded, size: 16),
+              label: const Text('添加冲突课程',
+                  style: TextStyle(fontSize: 13)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: textSecondary,
+                side: const BorderSide(
+                    color: borderColor, style: BorderStyle.solid),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(radiusMd)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _typeLabel(String type) {
+    const labels = {
+      'TJKC': '主修', 'FANKC': '方案内', 'FAWKC': '方案外',
+      'XGXK': '通识', 'TYKC': '体育',
+    };
+    return labels[type] ?? type;
+  }
+
+  void _showCourseDetail(Map<String, dynamic> item) {
+    final id = (item['teachingClassId'] ?? '').toString();
+    final name = (item['courseName'] ?? '').toString();
+    final teacher = (item['teacherName'] ?? '').toString();
+    final place = (item['teachingPlace'] ?? '').toString();
+    final type = (item['classType'] ?? '').toString();
+    final accent = accentForType(type);
+    final typeNames = {
+      'TJKC': '主修推荐', 'FANKC': '方案内', 'FAWKC': '方案外',
+      'XGXK': '基础通识', 'TYKC': '体育',
+    };
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusXl)),
+        child: Container(
+          width: 420,
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: accent.withAlpha(25),
+                      borderRadius: BorderRadius.circular(radiusMd),
+                    ),
+                    child: Icon(Icons.school_rounded, color: accent, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name,
+                            style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: textPrimary,
+                                fontFamily: 'NotoSansSC')),
+                        if (type.isNotEmpty)
+                          Text(typeNames[type] ?? type,
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: accent)),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    icon: const Icon(Icons.close_rounded, size: 22),
+                    splashRadius: 16,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              _detailRow('课程班号', id),
+              _detailRow('授课教师', teacher),
+              _detailRow('上课地点', place),
+              _detailRow('课程类别', typeNames[type] ?? type),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('关闭'),
+                    ),
+                  ),
+                  if (_currentView != 'selected') ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _addToWishList(item);
+                        },
+                        icon: const Icon(Icons.add_rounded, size: 18),
+                        label: const Text('加入抢课'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 72,
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 13,
+                    color: textMuted,
+                    fontFamily: 'NotoSansSC')),
+          ),
+          Expanded(
+            child: Text(value,
+                style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: textPrimary,
+                    fontFamily: 'NotoSansSC')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConfirm(int i, String name) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('移除抢课项'),
+        content: Text('确定要将「$name」从抢课列表中移除吗？'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('取消')),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _removeWishItem(i);
+            },
+            style: FilledButton.styleFrom(
+                backgroundColor: dangerColor),
+            child: const Text('移除'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Conflict Picker Dialog ───
+
+class _ConflictPickerDialog extends StatefulWidget {
+  final ApiService api;
+
+  const _ConflictPickerDialog({required this.api});
+
+  @override
+  State<_ConflictPickerDialog> createState() => _ConflictPickerDialogState();
+}
+
+class _ConflictPickerDialogState extends State<_ConflictPickerDialog> {
+  final _ctl = TextEditingController();
+  List<dynamic> _results = [];
+  bool _loading = false;
+  bool _searched = false;
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _search() async {
+    final kw = _ctl.text.trim();
+    setState(() {
+      _loading = true;
+      _searched = true;
+    });
+    try {
+      final result = await widget.api
+          .queryCourses('all', keyword: kw);
+      if (!mounted) return;
+      setState(() {
+        _results = (result['courses'] as List?) ?? [];
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusXl)),
+      child: Container(
+        width: 520,
+        constraints: const BoxConstraints(maxHeight: 540),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                const Text('搜索冲突课程',
+                    style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary)),
+                const Spacer(),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded, size: 22),
+                  splashRadius: 16,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _ctl,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      hintText: '输入课程名称或教师名搜索...',
+                      prefixIcon: Icon(Icons.search_rounded,
+                          size: 20, color: textMuted),
+                      contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 12),
+                    ),
+                    onSubmitted: (_) => _search(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: _loading ? null : _search,
+                  style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 14)),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white))
+                      : const Text('搜索'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            // Manual entry as fallback
+            Row(
+              children: [
+                const Icon(Icons.edit_note_rounded,
+                    size: 16, color: textMuted),
+                const SizedBox(width: 6),
+                const Text('或直接输入班号:',
+                    style:
+                        TextStyle(fontSize: 12, color: textMuted)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SizedBox(
+                    height: 34,
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: '粘贴课程班编号',
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 8),
+                      ),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontFamily: 'monospace'),
+                      onSubmitted: (v) {
+                        if (v.trim().isNotEmpty) {
+                          Navigator.pop(context, v.trim());
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator(),
+              )
+            else if (_searched && _results.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.search_off_rounded,
+                        size: 40, color: textMuted.withAlpha(80)),
+                    const SizedBox(height: 8),
+                    const Text('未找到匹配课程',
+                        style: TextStyle(
+                            fontSize: 13, color: textMuted)),
+                  ],
+                ),
+              )
+            else if (_results.isNotEmpty)
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _results.length,
+                  itemBuilder: (_, i) {
+                    final item = _results[i];
+                    final cid =
+                        (item['teachingClassId'] ?? '').toString();
+                    final cname =
+                        (item['courseName'] ?? '').toString();
+                    final cteacher =
+                        (item['teacherName'] ?? '').toString();
+                    final cplace =
+                        (item['teachingPlace'] ?? '').toString();
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      decoration: BoxDecoration(
+                        color: surfaceSecondary,
+                        borderRadius:
+                            BorderRadius.circular(radiusMd),
+                        border: Border.all(color: borderLight),
+                      ),
+                      child: InkWell(
+                        borderRadius:
+                            BorderRadius.circular(radiusMd),
+                        onTap: () =>
+                            Navigator.pop(context, cid),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(cname,
+                                        style: const TextStyle(
+                                            fontSize: 13.5,
+                                            fontWeight:
+                                                FontWeight.w600,
+                                            color: textPrimary)),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        Text(cteacher,
+                                            style: const TextStyle(
+                                                fontSize: 12,
+                                                color:
+                                                    textMuted)),
+                                        const SizedBox(width: 8),
+                                        if (cplace.isNotEmpty)
+                                          Text(cplace,
+                                              style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color:
+                                                      textMuted)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(cid,
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            fontFamily:
+                                                'monospace',
+                                            color: textSecondary)),
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                  Icons.add_circle_outline_rounded,
+                                  size: 22,
+                                  color: primaryColor),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
