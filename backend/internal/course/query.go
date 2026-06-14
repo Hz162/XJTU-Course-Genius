@@ -158,12 +158,12 @@ func parseDataList(raw json.RawMessage, classType string, hasTCLists, isXGXK boo
 	if isXGXK {
 		var list []struct {
 			CourseName       string `json:"courseName"`
+			Campus           string `json:"campus"`
 			TeachingTimeList []struct {
 				TeachingClassID string `json:"teachingClassID"`
 				TeacherName     string `json:"teacherName"`
 				TeachingPlace   string `json:"teachingPlace"`
 				CourseName      string `json:"courseName"`
-				Campus          string `json:"campus"`
 			} `json:"teachingTimeList"`
 		}
 		json.Unmarshal(raw, &list)
@@ -179,7 +179,7 @@ func parseDataList(raw json.RawMessage, classType string, hasTCLists, isXGXK boo
 					TeacherName:     tc.TeacherName,
 					TeachingPlace:   tc.TeachingPlace,
 					ClassType:       classType,
-					Campus:          tc.Campus,
+					Campus:          item.Campus,
 				})
 			}
 		}
