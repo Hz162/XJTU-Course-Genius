@@ -5,6 +5,7 @@ import (
 	"fmt"
 	stdlog "log"
 	"math"
+	"strings"
 	"time"
 
 	"xjtu-course-genius/internal/session"
@@ -81,12 +82,34 @@ var queryConfigs = map[string]queryConfig{
 }
 
 func QueryCourses(client *resty.Client, classType, keyword string) ([]CourseInfo, int, error) {
+	classType = strings.ToUpper(classType)
+	if classType == "ALL" {
+		return queryAllTypes(client, keyword)
+	}
 	cfg, ok := queryConfigs[classType]
 	if !ok {
 		return nil, 0, fmt.Errorf("未知的课程类型: %s", classType)
 	}
 	isXGXK := classType == "XGXK"
 	return fetchAllPages(client, cfg.URL, classType, keyword, cfg.HasTCLists, isXGXK)
+}
+
+func queryAllTypes(client *resty.Client, keyword string) ([]CourseInfo, int, error) {
+	var all []CourseInfo
+	types := []string{"TJKC", "FANKC", "FAWKC", "XGXK", "TYKC"}
+	for _, t := range types {
+		cfg, ok := queryConfigs[t]
+		if !ok {
+			continue
+		}
+		isXGXK := t == "XGXK"
+		courses, _, err := fetchAllPages(client, cfg.URL, t, keyword, cfg.HasTCLists, isXGXK)
+		if err != nil {
+			continue
+		}
+		all = append(all, courses...)
+	}
+	return all, len(all), nil
 }
 
 func fetchAllPages(client *resty.Client, endpoint, classType, keyword string, hasTCLists, isXGXK bool) ([]CourseInfo, int, error) {
