@@ -1,0 +1,293 @@
+package course
+
+import (
+	"encoding/json"
+	"fmt"
+	"math"
+	"time"
+
+	"xjtu-course-genius/internal/session"
+
+	"github.com/go-resty/resty/v2"
+)
+
+const baseURL = "https://xkfw.xjtu.edu.cn"
+
+func timestamp() int64 { return time.Now().UnixMilli() }
+
+// ── Selected courses ──
+
+func QuerySelected(client *resty.Client) ([]CourseResult, error) {
+	s := session.Get()
+	url := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/elective/courseResult.do", baseURL)
+	resp, err := client.R().
+		SetQueryParams(map[string]string{
+			"timestamp":         fmt.Sprintf("%d", timestamp()),
+			"studentCode":       s.StudentCode,
+			"electiveBatchCode": s.BatchCode,
+		}).
+		Get(url)
+	if err != nil {
+		return nil, err
+	}
+	var j struct {
+		DataList []struct {
+			TeachingClassID   string `json:"teachingClassID"`
+			CourseName        string `json:"courseName"`
+			TeacherName       string `json:"teacherName"`
+			TeachingPlace     string `json:"teachingPlace"`
+			CourseType        string `json:"courseType"`
+			CourseTypeName    string `json:"courseTypeName"`
+			Campus            string `json:"campus"`
+			CampusName        string `json:"campusName"`
+			Credit            string `json:"credit"`
+		} `json:"dataList"`
+	}
+	if err := json.Unmarshal(resp.Body(), &j); err != nil {
+		return nil, err
+	}
+	var results []CourseResult
+	for _, d := range j.DataList {
+		results = append(results, CourseResult{
+			TeachingClassID: d.TeachingClassID,
+			CourseName:      d.CourseName,
+			TeacherName:     d.TeacherName,
+			TeachingPlace:   d.TeachingPlace,
+			ClassType:       d.CourseType,
+			Campus:          d.Campus,
+			CampusName:      d.CampusName,
+			Credit:          d.Credit,
+			Selected:        true,
+		})
+	}
+	return results, nil
+}
+
+// ── Course queries by type ──
+
+type queryConfig struct {
+	URL         string
+	HasTCLists  bool // true if the response nests teaching classes inside course entries
+}
+
+var queryConfigs = map[string]queryConfig{
+	"TJKC": {"recommendedCourse.do", true},
+	"FANKC": {"programCourse.do", true},
+	"FAWKC": {"programCourse.do", true},
+	"TYKC":  {"programCourse.do", true},
+	"XGXK":  {"publicCourse.do", false},
+}
+
+func QueryCourses(client *resty.Client, classType, keyword string) ([]CourseInfo, int, error) {
+	cfg, ok := queryConfigs[classType]
+	if !ok {
+		return nil, 0, fmt.Errorf("未知的课程类型: %s", classType)
+	}
+	isXGXK := classType == "XGXK"
+	return fetchAllPages(client, cfg.URL, classType, keyword, cfg.HasTCLists, isXGXK)
+}
+
+func fetchAllPages(client *resty.Client, endpoint, classType, keyword string, hasTCLists, isXGXK bool) ([]CourseInfo, int, error) {
+	s := session.Get()
+	var all []CourseInfo
+
+	querySetting := map[string]interface{}{
+		"data": map[string]string{
+			"studentCode":       s.StudentCode,
+			"campus":            s.Campus,
+			"electiveBatchCode": s.BatchCode,
+			"isMajor":           "1",
+			"teachingClassType": classType,
+			"checkConflict":     "2",
+			"checkCapacity":     "2",
+			"queryContent":      keyword,
+		},
+		"pageSize":   "50",
+		"pageNumber": "0",
+		"order":      "",
+	}
+
+	qsBytes, _ := json.Marshal(querySetting)
+	url := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/elective/%s", baseURL, endpoint)
+
+	resp, err := client.R().
+		SetFormData(map[string]string{"querySetting": string(qsBytes)}).
+		Post(url)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var j struct {
+		TotalCount interface{} `json:"totalCount"`
+		DataList   json.RawMessage `json:"dataList"`
+	}
+	json.Unmarshal(resp.Body(), &j)
+
+	parsed := parseDataList(j.DataList, classType, hasTCLists, false)
+	all = append(all, parsed...)
+
+	totalCount := 0
+	switch v := j.TotalCount.(type) {
+	case float64:
+		totalCount = int(v)
+	}
+
+	totalPages := int(math.Ceil(float64(totalCount) / 50.0))
+	for page := 1; page < totalPages; page++ {
+		querySetting["pageNumber"] = fmt.Sprintf("%d", page)
+		qsBytes, _ := json.Marshal(querySetting)
+		resp, err := client.R().
+			SetFormData(map[string]string{"querySetting": string(qsBytes)}).
+			Post(url)
+		if err != nil {
+			break
+		}
+		var pj struct {
+			DataList json.RawMessage `json:"dataList"`
+		}
+		json.Unmarshal(resp.Body(), &pj)
+		all = append(all, parseDataList(pj.DataList, classType, hasTCLists, isXGXK)...)
+	}
+
+	return all, len(all), nil
+}
+
+func parseDataList(raw json.RawMessage, classType string, hasTCLists, isXGXK bool) []CourseInfo {
+	var results []CourseInfo
+	if isXGXK {
+		// XGXK: each item has teachingTimeList with course details inside
+		var list []struct {
+			CourseName       string `json:"courseName"`
+			TeachingTimeList []struct {
+				TeachingClassID string `json:"teachingClassID"`
+				TeacherName     string `json:"teacherName"`
+				TeachingPlace   string `json:"teachingPlace"`
+				CourseName      string `json:"courseName"`
+			} `json:"teachingTimeList"`
+		}
+		json.Unmarshal(raw, &list)
+		for _, item := range list {
+			for _, tc := range item.TeachingTimeList {
+				name := item.CourseName
+				if name == "" {
+					name = tc.CourseName
+				}
+				results = append(results, CourseInfo{
+					TeachingClassID: tc.TeachingClassID,
+					CourseName:      name,
+					TeacherName:     tc.TeacherName,
+					TeachingPlace:   tc.TeachingPlace,
+					ClassType:       classType,
+				})
+			}
+		}
+	} else if hasTCLists {
+		var list []struct {
+			CourseName string `json:"courseName"`
+			TcList     []struct {
+				TeachingClassID string `json:"teachingClassID"`
+				TeacherName     string `json:"teacherName"`
+				TeachingPlace   string `json:"teachingPlace"`
+				SportName       string `json:"sportName"`
+			} `json:"tcList"`
+		}
+		json.Unmarshal(raw, &list)
+		for _, a := range list {
+			for _, tc := range a.TcList {
+				name := a.CourseName
+				if classType == "TYKC" && tc.SportName != "" {
+					name = name + "-" + tc.SportName
+				}
+				results = append(results, CourseInfo{
+					TeachingClassID: tc.TeachingClassID,
+					CourseName:      name,
+					TeacherName:     tc.TeacherName,
+					TeachingPlace:   tc.TeachingPlace,
+					ClassType:       classType,
+				})
+			}
+		}
+	}
+	return results
+}
+
+// ── Capacity check ──
+
+func CheckCapacity(client *resty.Client, teachingClassID string) (bool, error) {
+	s := session.Get()
+	url := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/elective/teachingclass/capacity.do", baseURL)
+	resp, err := client.R().
+		SetQueryParams(map[string]string{
+			"teachingClassId": teachingClassID,
+			"capacitySuffix":  "",
+			"xh":              s.StudentCode,
+			"timestamp":       fmt.Sprintf("%d", timestamp()),
+		}).
+		Get(url)
+	if err != nil {
+		return false, err
+	}
+	var j struct {
+		Data struct {
+			NumberOfSelected string `json:"numberOfSelected"`
+			ClassCapacity    string `json:"classCapacity"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(resp.Body(), &j); err != nil {
+		return false, err
+	}
+	selected := parseInt(j.Data.NumberOfSelected)
+	capacity := parseInt(j.Data.ClassCapacity)
+	return selected < capacity, nil
+}
+
+// ── Volunteer / Delete ──
+
+func Volunteer(client *resty.Client, teachingClassID, classType, campus string) error {
+	s := session.Get()
+	xk := map[string]interface{}{
+		"data": map[string]string{
+			"operationType":     "1",
+			"studentCode":       s.StudentCode,
+			"electiveBatchCode": s.BatchCode,
+			"teachingClassId":   teachingClassID,
+			"isMajor":           "1",
+			"campus":            campus,
+			"teachingClassType": classType,
+		},
+	}
+	xkBytes, _ := json.Marshal(xk)
+	url := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/elective/volunteer.do", baseURL)
+	_, err := client.R().
+		SetFormData(map[string]string{"addParam": string(xkBytes)}).
+		Post(url)
+	return err
+}
+
+func DeleteVolunteer(client *resty.Client, teachingClassID string) error {
+	s := session.Get()
+	txkc := map[string]interface{}{
+		"data": map[string]string{
+			"operationType":     "2",
+			"studentCode":       s.StudentCode,
+			"electiveBatchCode": s.BatchCode,
+			"teachingClassId":   teachingClassID,
+			"isMajor":           "1",
+		},
+	}
+	txkcBytes, _ := json.Marshal(txkc)
+	url := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/elective/deleteVolunteer.do", baseURL)
+	_, err := client.R().
+		SetQueryParams(map[string]string{
+			"timestamp":   fmt.Sprintf("%d", timestamp()),
+			"deleteParam": string(txkcBytes),
+		}).
+		Get(url)
+	return err
+}
+
+func parseInt(s string) int {
+	var n int
+	fmt.Sscanf(s, "%d", &n)
+	return n
+}
