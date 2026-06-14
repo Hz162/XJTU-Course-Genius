@@ -33,15 +33,15 @@ func QuerySelected(client *resty.Client) ([]CourseResult, error) {
 	}
 	var j struct {
 		DataList []struct {
-			TeachingClassID   string `json:"teachingClassID"`
-			CourseName        string `json:"courseName"`
-			TeacherName       string `json:"teacherName"`
-			TeachingPlace     string `json:"teachingPlace"`
-			CourseType        string `json:"courseType"`
-			CourseTypeName    string `json:"courseTypeName"`
-			Campus            string `json:"campus"`
-			CampusName        string `json:"campusName"`
-			Credit            string `json:"credit"`
+			TeachingClassID string `json:"teachingClassID"`
+			CourseName      string `json:"courseName"`
+			TeacherName     string `json:"teacherName"`
+			TeachingPlace   string `json:"teachingPlace"`
+			CourseType      string `json:"courseType"`
+			CourseTypeName  string `json:"courseTypeName"`
+			Campus          string `json:"campus"`
+			CampusName      string `json:"campusName"`
+			Credit          string `json:"credit"`
 		} `json:"dataList"`
 	}
 	if err := json.Unmarshal(resp.Body(), &j); err != nil {
@@ -67,12 +67,12 @@ func QuerySelected(client *resty.Client) ([]CourseResult, error) {
 // ── Course queries by type ──
 
 type queryConfig struct {
-	URL         string
-	HasTCLists  bool // true if the response nests teaching classes inside course entries
+	URL        string
+	HasTCLists bool
 }
 
 var queryConfigs = map[string]queryConfig{
-	"TJKC": {"recommendedCourse.do", true},
+	"TJKC":  {"recommendedCourse.do", true},
 	"FANKC": {"programCourse.do", true},
 	"FAWKC": {"programCourse.do", true},
 	"TYKC":  {"programCourse.do", true},
@@ -119,7 +119,7 @@ func fetchAllPages(client *resty.Client, endpoint, classType, keyword string, ha
 	}
 
 	var j struct {
-		TotalCount interface{} `json:"totalCount"`
+		TotalCount interface{}     `json:"totalCount"`
 		DataList   json.RawMessage `json:"dataList"`
 	}
 	json.Unmarshal(resp.Body(), &j)
@@ -156,7 +156,6 @@ func fetchAllPages(client *resty.Client, endpoint, classType, keyword string, ha
 func parseDataList(raw json.RawMessage, classType string, hasTCLists, isXGXK bool) []CourseInfo {
 	var results []CourseInfo
 	if isXGXK {
-		// XGXK: each item has teachingTimeList with course details inside
 		var list []struct {
 			CourseName       string `json:"courseName"`
 			TeachingTimeList []struct {
@@ -164,6 +163,7 @@ func parseDataList(raw json.RawMessage, classType string, hasTCLists, isXGXK boo
 				TeacherName     string `json:"teacherName"`
 				TeachingPlace   string `json:"teachingPlace"`
 				CourseName      string `json:"courseName"`
+				Campus          string `json:"campus"`
 			} `json:"teachingTimeList"`
 		}
 		json.Unmarshal(raw, &list)
@@ -179,6 +179,7 @@ func parseDataList(raw json.RawMessage, classType string, hasTCLists, isXGXK boo
 					TeacherName:     tc.TeacherName,
 					TeachingPlace:   tc.TeachingPlace,
 					ClassType:       classType,
+					Campus:          tc.Campus,
 				})
 			}
 		}
@@ -190,6 +191,7 @@ func parseDataList(raw json.RawMessage, classType string, hasTCLists, isXGXK boo
 				TeacherName     string `json:"teacherName"`
 				TeachingPlace   string `json:"teachingPlace"`
 				SportName       string `json:"sportName"`
+				Campus          string `json:"campus"`
 			} `json:"tcList"`
 		}
 		json.Unmarshal(raw, &list)
@@ -205,6 +207,7 @@ func parseDataList(raw json.RawMessage, classType string, hasTCLists, isXGXK boo
 					TeacherName:     tc.TeacherName,
 					TeachingPlace:   tc.TeachingPlace,
 					ClassType:       classType,
+					Campus:          tc.Campus,
 				})
 			}
 		}
@@ -251,6 +254,9 @@ func CheckCapacity(client *resty.Client, teachingClassID string) (bool, error) {
 
 func Volunteer(client *resty.Client, teachingClassID, classType, campus string) error {
 	s := session.Get()
+	if campus == "" {
+		campus = "1"
+	}
 	xk := map[string]interface{}{
 		"data": map[string]string{
 			"operationType":     "1",
@@ -271,7 +277,7 @@ func Volunteer(client *resty.Client, teachingClassID, classType, campus string) 
 		stdlog.Printf("[sel] Volunteer %s: HTTP err=%v", teachingClassID, err)
 		return err
 	}
-	stdlog.Printf("[sel] Volunteer %s: status=%d body=%s", teachingClassID, resp.StatusCode(), safeSlice(string(resp.Body()), 200))
+	stdlog.Printf("[sel] Volunteer %s: status=%d body=%s campus=%s", teachingClassID, resp.StatusCode(), safeSlice(string(resp.Body()), 200), campus)
 	var vj struct {
 		Code interface{} `json:"code"`
 		Msg  string      `json:"msg"`
