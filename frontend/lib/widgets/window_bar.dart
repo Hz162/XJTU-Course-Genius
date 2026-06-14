@@ -9,16 +9,19 @@ class WindowBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 32,
-      color: Colors.transparent,
-      child: Row(
-        children: [
-          const Spacer(),
-          _WinBtn(Icons.minimize_rounded, 'windowMinimize'),
-          _WinBtn(Icons.crop_square_rounded, 'windowMaximize'),
-          _WinBtn(Icons.close_rounded, 'windowClose', isClose: true),
-        ],
+    return GestureDetector(
+      onPanStart: (_) => _channel.invokeMethod('windowDrag'),
+      child: Container(
+        height: 32,
+        color: Colors.transparent,
+        child: Row(
+          children: [
+            const Spacer(),
+            _WinBtn(Icons.minimize_rounded, 'windowMinimize'),
+            _WinBtn(Icons.crop_square_rounded, 'windowMaximize'),
+            _WinBtn(Icons.close_rounded, 'windowClose', isClose: true),
+          ],
+        ),
       ),
     );
   }

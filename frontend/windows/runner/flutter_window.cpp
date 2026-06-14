@@ -63,6 +63,10 @@ bool FlutterWindow::OnCreate() {
           GetWindowPlacement(hwnd_, &wp);
           ShowWindow(hwnd_, (wp.showCmd == SW_SHOWMAXIMIZED) ? SW_RESTORE : SW_SHOWMAXIMIZED);
           result->Success(flutter::EncodableValue(wp.showCmd != SW_SHOWMAXIMIZED));
+        } else if (call.method_name() == "windowDrag") {
+          ReleaseCapture();
+          PostMessage(hwnd_, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+          result->Success();
         } else if (call.method_name() == "windowClose") {
           PostMessage(hwnd_, WM_CLOSE, 0, 0);
           result->Success();
