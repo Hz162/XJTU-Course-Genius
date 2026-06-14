@@ -186,14 +186,10 @@ func FullLoginWithCaptcha(client *resty.Client, account, password, captcha strin
 		captchaExecution = execution
 		captchaMFAState = mfaState
 		captchaFpID = fpID
-
-		// Check captcha requirement AFTER setting up CAS session
-		// (so the client has CAS cookies when we fetch the captcha image)
-		if IsCaptchaRequired() && captcha == "" {
-			return &CaptchaNeededError{}
-		}
 	}
 
+	// Always try CAS login — let CAS decide if captcha is needed.
+	// If CAS shows captcha page, postCASRaw returns CaptchaNeededError.
 	return postCASRaw(httpClient, casURL, account, encPwd, execution, mfaState, fpID, captcha, "")
 }
 
@@ -304,10 +300,14 @@ func postCASRaw(httpClient *http.Client, casURL, account, encPwd, execution, mfa
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 
-	// CAS returned captcha page — either first time or wrong code
+	// CAS returned captcha page
 	if isCaptchaPage(body) {
 		failCount++
-		return &CaptchaNeededError{Message: "验证码错误，请重试"}
+		if captcha != "" {
+			// We sent a captcha but CAS still shows captcha page → wrong code
+			return &CaptchaNeededError{Message: "验证码错误，请重试"}
+		}
+		return &CaptchaNeededError{}
 	}
 
 	// Check for alert error
@@ -339,8 +339,8 @@ func postCASRaw(httpClient *http.Client, casURL, account, encPwd, execution, mfa
 		return &AccountChoiceNeededError{Choices: choices}
 	}
 
-	// Success — follow redirect chain, extract employeeNo, then register
-	return followRedirectsAndRegister(httpClient)
+	// Success — call register directly (CAS auto-redirect already set cookies)
+	return doRegisterFromHTTP(httpClient)
 }
 
 // followRedirectsAndRegister manually follows the CAS redirect chain,
@@ -696,6 +696,43 @@ func detectMFA(client *resty.Client, account, encPwd, fpID string) (need bool, s
 }
 
 // ── follow redirects & register ──
+
+// doRegisterFromHTTP calls register.do with raw http.Client.
+func doRegisterFromHTTP(httpClient *http.Client) error {
+	s := session.Get()
+
+	candidates := []string{"null", s.Account}
+	var lastBody []byte
+	for _, num := range candidates {
+		regURL := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/student/register.do?number=%s", baseURL, num)
+		resp, err := httpClient.Get(regURL)
+		if err != nil {
+			continue
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		lastBody = body
+
+		var j struct {
+			Code interface{} `json:"code"`
+			Data struct {
+				Token  string `json:"token"`
+				Number string `json:"number"`
+			} `json:"data"`
+		}
+		json.Unmarshal(body, &j)
+		if codeIsOK(j.Code) && j.Data.Token != "" {
+			session.SetToken(j.Data.Token)
+			if j.Data.Number != "" {
+				session.SetStudentCode(j.Data.Number)
+			}
+			ResetFailCount()
+			session.SaveCookiesFromHTTP(httpClient)
+			return nil
+		}
+	}
+	return fmt.Errorf("注册失败: 无法获取token, 响应=%s", string(lastBody))
+}
 
 // doRegister calls the xkfw register endpoint directly.
 // Session cookies must already be in the client's jar (from CAS redirect chain).
