@@ -136,32 +136,23 @@ func FullLogin(client *resty.Client, account, password string) error {
 }
 
 func FullLoginWithCaptcha(client *resty.Client, account, password, captcha string) error {
-	// Match XJTUToolBox: client-side fail count simulates CAS server threshold
-	if IsCaptchaRequired() && captcha == "" {
-		return &CaptchaNeededError{}
-	}
-
 	httpClient := client.GetClient()
 
 	var casURL, execution, mfaState, fpID string
 	var encPwd string
 
-	// Captcha retry: reuse the same CAS session/execution that the captcha image belongs to
+	// Captcha retry: reuse stored CAS session (same as captcha image)
 	if captcha != "" && captchaCASURL != "" {
 		casURL = captchaCASURL
 		execution = captchaExecution
 		mfaState = captchaMFAState
 		fpID = captchaFpID
-
 		encPwd, _ = EncryptPassword(password)
 	} else {
-		fpID, err := GetFingerprint()
-		if err != nil {
-			return fmt.Errorf("指纹获取失败: %w", err)
-		}
+		fpID, _ = GetFingerprint()
 		session.SetFpVisitorID(fpID)
 
-		// Step 1: GET xkfw → CAS redirect
+		// Step 1: GET xkfw → CAS redirect (sets CAS cookies on this client)
 		resp, err := httpClient.Get(baseURL)
 		if err != nil {
 			return fmt.Errorf("访问选课系统失败: %w", err)
@@ -172,40 +163,37 @@ func FullLoginWithCaptcha(client *resty.Client, account, password, captcha strin
 		execution = extractExecution(body)
 
 		// Step 2: GET public key
-		pubResp, err := httpClient.Get(casBaseURL + "/cas/jwt/publicKey")
-		if err != nil {
-			return fmt.Errorf("获取公钥失败: %w", err)
+		if pubResp, err := httpClient.Get(casBaseURL + "/cas/jwt/publicKey"); err == nil {
+			pubBody, _ := io.ReadAll(pubResp.Body)
+			pubResp.Body.Close()
+			SetPubKey(string(pubBody))
 		}
-		pubBody, _ := io.ReadAll(pubResp.Body)
-		pubResp.Body.Close()
-		SetPubKey(string(pubBody))
 
-		encPwd, err = EncryptPassword(password)
-		if err != nil {
-			return fmt.Errorf("密码加密失败: %w", err)
-		}
+		encPwd, _ = EncryptPassword(password)
 
 		// Step 3: MFA detect
-		mfaNeed, mfaState2, err := detectMFA(client, account, encPwd, fpID)
-		if err != nil {
-			return fmt.Errorf("MFA检测失败: %w", err)
-		}
-		mfaState = mfaState2
-
-		if mfaNeed {
-			currentMFA = &MFAInfo{State: mfaState, Flow: MFAFlowMFA}
-			ClearSafetyVerify()
-			return &MFANeededError{State: mfaState, Reason: "需要MFA验证", IsMFA: true}
+		if mfaNeed, mfaState2, err := detectMFA(client, account, encPwd, fpID); err == nil {
+			mfaState = mfaState2
+			if mfaNeed {
+				currentMFA = &MFAInfo{State: mfaState, Flow: MFAFlowMFA}
+				ClearSafetyVerify()
+				return &MFANeededError{State: mfaState, Reason: "需要MFA验证", IsMFA: true}
+			}
 		}
 
-		// Store for captcha retry
+		// Store CAS session for potential captcha retry
 		captchaCASURL = casURL
 		captchaExecution = execution
 		captchaMFAState = mfaState
 		captchaFpID = fpID
+
+		// Check captcha requirement AFTER setting up CAS session
+		// (so the client has CAS cookies when we fetch the captcha image)
+		if IsCaptchaRequired() && captcha == "" {
+			return &CaptchaNeededError{}
+		}
 	}
 
-	// Step 4: submit CAS form
 	return postCASRaw(httpClient, casURL, account, encPwd, execution, mfaState, fpID, captcha, "")
 }
 
@@ -351,48 +339,96 @@ func postCASRaw(httpClient *http.Client, casURL, account, encPwd, execution, mfa
 		return &AccountChoiceNeededError{Choices: choices}
 	}
 
-	// Success — call register
-	regURL := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/student/register.do?number=null", baseURL)
-	regResp, err := httpClient.Get(regURL)
-	if err != nil {
-		return fmt.Errorf("注册请求失败: %w", err)
-	}
-	defer regResp.Body.Close()
-	regBody, _ := io.ReadAll(regResp.Body)
+	// Success — follow redirect chain, extract employeeNo, then register
+	return followRedirectsAndRegister(httpClient)
+}
 
-	var j struct {
-		Code interface{} `json:"code"`
-		Data struct {
-			Token  string `json:"token"`
-			Number string `json:"number"`
-		} `json:"data"`
+// followRedirectsAndRegister manually follows the CAS redirect chain,
+// extracts employeeNo, then registers (matching login.py fallback logic).
+func followRedirectsAndRegister(httpClient *http.Client) error {
+	// Disable auto-redirect to manually follow the chain
+	origCheckRedirect := httpClient.CheckRedirect
+	httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
-	json.Unmarshal(regBody, &j)
+	defer func() { httpClient.CheckRedirect = origCheckRedirect }()
 
-	if !codeIsOK(j.Code) {
-		// Try with account
-		regURL = fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/student/register.do?number=%s", baseURL, session.Get().Account)
-		regResp2, err := httpClient.Get(regURL)
-		if err == nil {
-			defer regResp2.Body.Close()
-			regBody2, _ := io.ReadAll(regResp2.Body)
-			json.Unmarshal(regBody2, &j)
+	var employeeNo string
+	url := baseURL
+
+	for i := 0; i < 10; i++ {
+		resp, err := httpClient.Get(url)
+		if err != nil {
+			return fmt.Errorf("重定向链请求失败: %w", err)
+		}
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode != http.StatusFound && resp.StatusCode != http.StatusMovedPermanently {
+			// Reached xkfw app — proceed to register
+			break
+		}
+
+		loc := resp.Header.Get("Location")
+		if loc == "" {
+			break
+		}
+
+		if strings.Contains(loc, "employeeNo=") {
+			parts := strings.Split(loc, "employeeNo=")
+			if len(parts) > 1 {
+				employeeNo = strings.Split(parts[1], "&")[0]
+			}
+			httpClient.Get(loc) // follow with auto-redirect to set cookies
+			break
+		}
+		url = loc
+	}
+
+	// Restore auto-redirect for register call
+	httpClient.CheckRedirect = origCheckRedirect
+
+	// Try register with employeeNo first, then null, then account
+	candidates := []string{}
+	if employeeNo != "" {
+		candidates = append(candidates, employeeNo)
+	}
+	candidates = append(candidates, "null", session.Get().Account)
+
+	var lastBody []byte
+	for _, num := range candidates {
+		regURL := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/student/register.do?number=%s", baseURL, num)
+		resp, err := httpClient.Get(regURL)
+		if err != nil {
+			continue
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		lastBody = body
+
+		var j struct {
+			Code interface{} `json:"code"`
+			Data struct {
+				Token  string `json:"token"`
+				Number string `json:"number"`
+			} `json:"data"`
+		}
+		json.Unmarshal(body, &j)
+
+		if codeIsOK(j.Code) && j.Data.Token != "" {
+			session.SetToken(j.Data.Token)
+			if j.Data.Number != "" {
+				session.SetStudentCode(j.Data.Number)
+			} else if employeeNo != "" {
+				session.SetStudentCode(employeeNo)
+			}
+			ResetFailCount()
+			session.SaveCookiesFromHTTP(httpClient)
+			return nil
 		}
 	}
-	if !codeIsOK(j.Code) {
-		return fmt.Errorf("注册失败: 无法获取token, 响应=%s", string(regBody))
-	}
 
-	if j.Data.Token != "" {
-		session.SetToken(j.Data.Token)
-	}
-	if j.Data.Number != "" {
-		session.SetStudentCode(j.Data.Number)
-	}
-
-	ResetFailCount()
-	session.SaveCookiesFromHTTP(httpClient)
-	return nil
+	return fmt.Errorf("注册失败: 无法获取token, 响应=%s", string(lastBody))
 }
 
 type MFANeededError struct {
