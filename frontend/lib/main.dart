@@ -1,15 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'services/backend_service.dart';
 import 'theme/app_theme.dart';
 import 'pages/login_page.dart';
-import 'widgets/window_bar.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Auto-start backend
+  final backend = BackendService();
+  await backend.start();
+
   runApp(const CourseGeniusApp());
 }
 
-class CourseGeniusApp extends StatelessWidget {
+class CourseGeniusApp extends StatefulWidget {
   const CourseGeniusApp({super.key});
+
+  @override
+  State<CourseGeniusApp> createState() => _CourseGeniusAppState();
+}
+
+class _CourseGeniusAppState extends State<CourseGeniusApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.detached) {
+      BackendService().stop();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,12 +48,16 @@ class CourseGeniusApp extends StatelessWidget {
       title: 'XJTU Course Genius',
       theme: appTheme(),
       debugShowCheckedModeBanner: false,
-      builder: (context, child) => Column(
-        children: [
-          const WindowBar(),
-          Expanded(child: child ?? const SizedBox.shrink()),
-        ],
-      ),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('zh', 'CN'),
+        Locale('en', 'US'),
+      ],
+      locale: const Locale('zh', 'CN'),
       home: const LoginPage(),
     );
   }

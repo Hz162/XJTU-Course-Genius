@@ -30,6 +30,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
+    _api.discover(); // auto-detect backend port
     _accountFocus.addListener(() {
       if (_accountFocus.hasFocus) {
         ImeService.onFieldFocus();
@@ -203,25 +204,33 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: bgColor,
-      body: Focus(
-        onKeyEvent: _handleKey,
-        child: Center(
-          child: _loading
-              ? const Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                        width: 40,
-                        height: 40,
-                        child:
-                            CircularProgressIndicator(strokeWidth: 3)),
-                    SizedBox(height: 16),
-                    Text('正在登录...',
-                        style: TextStyle(color: Color(0xFF909399))),
-                  ],
-                )
-              : _buildForm(),
-        ),
+      body: Column(
+        children: [
+          const WindowBar(),
+          Expanded(
+            child: Focus(
+              onKeyEvent: _handleKey,
+              child: Center(
+                child: _loading
+                    ? const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 3)),
+                          SizedBox(height: 16),
+                          Text('正在登录...',
+                              style:
+                                  TextStyle(color: Color(0xFF909399))),
+                        ],
+                      )
+                    : _buildForm(),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

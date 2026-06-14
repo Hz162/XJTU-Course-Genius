@@ -29,13 +29,19 @@ class MainFlutterWindow: NSWindow {
         self.contentViewController = flutterViewController
         self.setFrame(windowFrame, display: true)
 
+        // Frameless style: transparent titlebar, content extends to top
+        self.titlebarAppearsTransparent = true
+        self.titleVisibility = .hidden
+        self.styleMask.insert(.fullSizeContentView)
+        self.isMovableByWindowBackground = true
+
         RegisterGeneratedPlugins(registry: flutterViewController)
 
-        // IME method channel: switch keyboard to English on macOS
+        // IME + window control method channel
         let imeChannel = FlutterMethodChannel(
             name: "com.xjtu.genius/ime",
             binaryMessenger: flutterViewController.engine.binaryMessenger)
-        imeChannel.setMethodCallHandler { (call, result) in
+        imeChannel.setMethodCallHandler { [weak self] (call, result) in
             if call.method == "saveCurrentIme" {
                 savedInputSource = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue()
                 result(true)
@@ -46,6 +52,20 @@ class MainFlutterWindow: NSWindow {
                 if let source = savedInputSource {
                     TISSelectInputSource(source)
                     savedInputSource = nil
+                }
+                result(true)
+            } else if call.method == "windowMinimize" {
+                self?.miniaturize(nil)
+                result(true)
+            } else if call.method == "windowMaximize" {
+                self?.zoom(nil)
+                result(true)
+            } else if call.method == "windowClose" {
+                self?.close()
+                result(true)
+            } else if call.method == "windowDrag" {
+                if let event = NSApp.currentEvent {
+                    self?.performDrag(with: event)
                 }
                 result(true)
             } else {
@@ -60,7 +80,6 @@ class MainFlutterWindow: NSWindow {
             queue: nil) { _ in
                 if let source = savedInputSource {
                     TISSelectInputSource(source)
-                    // Keep savedInputSource so we can switch back on reactivation
                 }
             }
 

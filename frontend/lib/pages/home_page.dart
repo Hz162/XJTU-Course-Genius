@@ -5,6 +5,7 @@ import '../models/course.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/sidebar.dart';
+import '../widgets/window_bar.dart';
 
 class HomePage extends StatefulWidget {
   final ApiService api;
@@ -275,112 +276,124 @@ class _HomePageState extends State<HomePage> {
       onKeyEvent: _handleGlobalKey,
       child: Scaffold(
         backgroundColor: bgColor,
-        appBar: AppBar(
-          title: const Text('XJTU Course Genius',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          leading: IconButton(
-            icon: Icon(
-                _sidebarCollapsed
-                    ? Icons.menu_rounded
-                    : Icons.menu_open_rounded,
-                size: 22),
-            onPressed: () =>
-                setState(() => _sidebarCollapsed = !_sidebarCollapsed),
-          ),
-          actions: [
-            if (_selecting)
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    gradient: primaryGradient,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: shadowSm(primaryColor),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white)),
-                      SizedBox(width: 8),
-                      Text('抢课中',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
-        body: Row(
+        body: Column(
           children: [
-            Sidebar(
-              selected: _currentItem,
-              campus: _currentCampus,
-              collapsed: _sidebarCollapsed,
-              campusItems: _campusList.map<DropdownMenuItem<String>>((c) {
-                final code = c['code']?.toString() ?? '';
-                final name = c['name']?.toString() ?? '';
-                final selected = code == _currentCampus;
-                return DropdownMenuItem<String>(
-                  value: code,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 4, vertical: 8),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? primaryColor.withAlpha(25)
-                                : surfaceSecondary,
-                            borderRadius:
-                                BorderRadius.circular(radiusSm),
-                          ),
-                          child: Icon(Icons.location_on_rounded,
-                              size: 15,
-                              color: selected
-                                  ? primaryColor
-                                  : textMuted),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(name,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: selected
-                                    ? FontWeight.w600
-                                    : FontWeight.w500,
-                                color: selected
-                                    ? primaryColor
-                                    : textPrimary,
-                                fontFamily: 'NotoSansSC',
-                              )),
-                        ),
-                        if (selected)
-                          const Icon(Icons.check_rounded,
-                              size: 18, color: primaryColor),
-                      ],
-                    ),
+            WindowBar(
+              leading: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                        _sidebarCollapsed
+                            ? Icons.menu_rounded
+                            : Icons.menu_open_rounded,
+                        size: 20),
+                    onPressed: () =>
+                        setState(() => _sidebarCollapsed = !_sidebarCollapsed),
                   ),
-                );
-              }).toList(),
-              campusNames: _campusList
-                  .map<String>((c) => c['name']?.toString() ?? '')
-                  .toList(),
-              onItemSelected: _onSidebarItem,
-              onCampusChanged: _setCampus,
+                  const Text('XJTU Course Genius',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: textPrimary)),
+                  if (_selecting)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          gradient: primaryGradient,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: shadowSm(primaryColor),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                                width: 10,
+                                height: 10,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white)),
+                            SizedBox(width: 6),
+                            Text('抢课中',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
-            Expanded(child: _buildContent()),
+            Expanded(
+              child: Row(
+                children: [
+                  Sidebar(
+                    selected: _currentItem,
+                    campus: _currentCampus,
+                    collapsed: _sidebarCollapsed,
+                    campusItems: _campusList.map<DropdownMenuItem<String>>((c) {
+                      final code = c['code']?.toString() ?? '';
+                      final name = c['name']?.toString() ?? '';
+                      final selected = code == _currentCampus;
+                      return DropdownMenuItem<String>(
+                        value: code,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 8),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  color: selected
+                                      ? primaryColor.withAlpha(25)
+                                      : surfaceSecondary,
+                                  borderRadius:
+                                      BorderRadius.circular(radiusSm),
+                                ),
+                                child: Icon(Icons.location_on_rounded,
+                                    size: 15,
+                                    color: selected
+                                        ? primaryColor
+                                        : textMuted),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(name,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: selected
+                                          ? FontWeight.w600
+                                          : FontWeight.w500,
+                                      color: selected
+                                          ? primaryColor
+                                          : textPrimary,
+                                      fontFamily: 'NotoSansSC',
+                                    )),
+                              ),
+                              if (selected)
+                                const Icon(Icons.check_rounded,
+                                    size: 18, color: primaryColor),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    campusNames: _campusList
+                        .map<String>((c) => c['name']?.toString() ?? '')
+                        .toList(),
+                    onItemSelected: _onSidebarItem,
+                    onCampusChanged: _setCampus,
+                  ),
+                  Expanded(child: _buildContent()),
+                ],
+              ),
+            ),
           ],
         ),
       ),

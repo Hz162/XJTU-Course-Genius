@@ -11,6 +11,7 @@ struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
   FlMethodChannel* ime_channel;
+  GtkWindow* window;
 };
 
 // Saved keyboard layout for IME restore
@@ -18,6 +19,10 @@ static char* saved_layout = NULL;
 static guint focus_out_timer = 0;
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
+
+GtkWindow* my_application_get_window(MyApplication* self) {
+  return self->window;
+}
 
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
@@ -40,9 +45,7 @@ static gboolean delayed_ime_restore(gpointer user_data) {
 
 static gboolean on_window_focus_out(GtkWidget* widget, GdkEventFocus* event,
                                      gpointer user_data) {
-  // Cancel any pending restore for field-to-field transitions
   if (focus_out_timer) g_source_remove(focus_out_timer);
-  // App losing focus: restore original IME for other apps, keep saved_layout
   if (saved_layout && saved_layout[0] != '\0') {
     char cmd[256];
     snprintf(cmd, sizeof(cmd), "setxkbmap %s 2>/dev/null", saved_layout);
@@ -54,12 +57,10 @@ static gboolean on_window_focus_out(GtkWidget* widget, GdkEventFocus* event,
 
 static gboolean on_window_focus_in(GtkWidget* widget, GdkEventFocus* event,
                                     gpointer user_data) {
-  // Cancel any pending delayed restore
   if (focus_out_timer) {
     g_source_remove(focus_out_timer);
     focus_out_timer = 0;
   }
-  // App regaining focus: switch back to English if IME was saved
   if (saved_layout && saved_layout[0] != '\0') {
     ime_switch_to_english();
   }
@@ -69,6 +70,8 @@ static gboolean on_window_focus_in(GtkWidget* widget, GdkEventFocus* event,
 static void ime_method_call_handler(FlMethodChannel* channel,
                                      FlMethodCall* method_call,
                                      gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  GtkWindow* window = self->window;
   const gchar* method = fl_method_call_get_name(method_call);
   g_autoptr(GError) error = NULL;
 
@@ -102,6 +105,28 @@ static void ime_method_call_handler(FlMethodChannel* channel,
     saved_layout = NULL;
     g_autoptr(FlValue) result = fl_value_new_bool(TRUE);
     fl_method_call_respond_success(channel, method_call, result, &error);
+  } else if (g_strcmp0(method, "windowMinimize") == 0) {
+    if (window) gtk_window_iconify(window);
+    g_autoptr(FlValue) result = fl_value_new_bool(TRUE);
+    fl_method_call_respond_success(channel, method_call, result, &error);
+  } else if (g_strcmp0(method, "windowMaximize") == 0) {
+    if (window) {
+      if (gtk_window_is_maximized(window)) {
+        gtk_window_unmaximize(window);
+      } else {
+        gtk_window_maximize(window);
+      }
+    }
+    g_autoptr(FlValue) result = fl_value_new_bool(TRUE);
+    fl_method_call_respond_success(channel, method_call, result, &error);
+  } else if (g_strcmp0(method, "windowClose") == 0) {
+    if (window) gtk_window_close(window);
+    g_autoptr(FlValue) result = fl_value_new_bool(TRUE);
+    fl_method_call_respond_success(channel, method_call, result, &error);
+  } else if (g_strcmp0(method, "windowDrag") == 0) {
+    if (window) gtk_window_begin_move_drag(window, 1, 1, 0, 0);
+    g_autoptr(FlValue) result = fl_value_new_bool(TRUE);
+    fl_method_call_respond_success(channel, method_call, result, &error);
   } else {
     fl_method_call_respond_not_implemented(channel, method_call, &error);
   }
@@ -116,27 +141,13 @@ static void my_application_activate(GApplication* application) {
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
 
-  gboolean use_header_bar = TRUE;
-#ifdef GDK_WINDOWING_X11
-  GdkScreen* screen = gtk_window_get_screen(window);
-  if (GDK_IS_X11_SCREEN(screen)) {
-    const gchar* wm_name = gdk_x11_screen_get_window_manager_name(screen);
-    if (g_strcmp0(wm_name, "GNOME Shell") != 0) {
-      use_header_bar = FALSE;
-    }
-  }
-#endif
-  if (use_header_bar) {
-    GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
-    gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "");
-    gtk_header_bar_set_show_close_button(header_bar, TRUE);
-    gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
-  } else {
-    gtk_window_set_title(window, "");
-  }
+  self->window = window;
 
+  // Frameless window: remove decorations to match Windows style
+  gtk_window_set_decorated(window, FALSE);
+  gtk_window_set_title(window, "");
   gtk_window_set_default_size(window, 1280, 720);
+
   g_signal_connect(window, "focus-out-event", G_CALLBACK(on_window_focus_out), NULL);
   g_signal_connect(window, "focus-in-event", G_CALLBACK(on_window_focus_in), NULL);
 
@@ -146,7 +157,7 @@ static void my_application_activate(GApplication* application) {
 
   FlView* view = fl_view_new(project);
   GdkRGBA background_color;
-  gdk_rgba_parse(&background_color, "#000000");
+  gdk_rgba_parse(&background_color, "#F1F5F9");
   fl_view_set_background_color(view, &background_color);
   gtk_widget_show(GTK_WIDGET(view));
   gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));
@@ -157,14 +168,14 @@ static void my_application_activate(GApplication* application) {
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
 
-  // Set up IME method channel: switch keyboard to English on Linux
+  // Set up IME + window control method channel
   FlBinaryMessenger* messenger =
       fl_engine_get_binary_messenger(fl_view_get_engine(view));
   g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
   self->ime_channel = fl_method_channel_new(
       messenger, "com.xjtu.genius/ime", FL_METHOD_CODEC(codec));
   fl_method_channel_set_method_call_handler(
-      self->ime_channel, ime_method_call_handler, NULL, NULL);
+      self->ime_channel, ime_method_call_handler, self, NULL);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
@@ -174,7 +185,6 @@ static gboolean my_application_local_command_line(GApplication* application,
                                                   gchar*** arguments,
                                                   int* exit_status) {
   MyApplication* self = MY_APPLICATION(application);
-  // Strip out the first argument as it is the binary name.
   self->dart_entrypoint_arguments = g_strdupv(*arguments + 1);
 
   g_autoptr(GError) error = nullptr;

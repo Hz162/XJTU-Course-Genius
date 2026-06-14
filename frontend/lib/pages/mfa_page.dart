@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../services/ime_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/window_bar.dart';
 
 class MfaPage extends StatefulWidget {
   final ApiService api;
@@ -127,22 +128,30 @@ class _MfaPageState extends State<MfaPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: bgColor,
-      appBar: AppBar(title: const Text('二次认证')),
-      body: Center(
-        child: Container(
-          width: 400,
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: const [
-              BoxShadow(
-                  color: Color(0x0A000000),
-                  blurRadius: 24,
-                  offset: Offset(0, 4)),
-            ],
+      body: Column(
+        children: [
+          WindowBar(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded, size: 20),
+              onPressed: () => Navigator.pop(context),
+            ),
           ),
-          child: _initLoading
+          Expanded(
+            child: Center(
+              child: Container(
+                width: 400,
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: const [
+                    BoxShadow(
+                        color: Color(0x0A000000),
+                        blurRadius: 24,
+                        offset: Offset(0, 4)),
+                  ],
+                ),
+                child: _initLoading
               ? const Center(child: CircularProgressIndicator())
               : Column(
                   mainAxisSize: MainAxisSize.min,
@@ -163,6 +172,9 @@ class _MfaPageState extends State<MfaPage> {
                 ),
         ),
       ),
+    ),
+  ],
+),
     );
   }
 

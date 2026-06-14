@@ -18,4 +18,6 @@ G_DECLARE_FINAL_TYPE(MyApplication,
  */
 MyApplication* my_application_new();
 
+GtkWindow* my_application_get_window(MyApplication* self);
+
 #endif  // FLUTTER_MY_APPLICATION_H_

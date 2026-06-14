@@ -1,18 +1,88 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../models/course.dart';
 
 class ApiService {
-  static const baseUrl = 'http://127.0.0.1:18720/api';
+  static const _defaultPort = 18720;
+
+  String _baseUrl = 'http://127.0.0.1:$_defaultPort/api';
+
+  String get baseUrl => _baseUrl;
 
   final http.Client _client = http.Client();
+
+  // ── Port discovery ──
+
+  static String get _configDir {
+    if (Platform.isWindows) {
+      final appdata = Platform.environment['APPDATA'] ??
+          '${Platform.environment['USERPROFILE']}\\AppData\\Roaming';
+      return '$appdata\\xjtu-genius';
+    } else if (Platform.isMacOS) {
+      return '${Platform.environment['HOME']}/Library/Application Support/xjtu-genius';
+    } else {
+      final xdg = Platform.environment['XDG_CONFIG_HOME'] ??
+          '${Platform.environment['HOME']}/.config';
+      return '$xdg/xjtu-genius';
+    }
+  }
+
+  /// Auto-discover backend by reading port file, then fall back to trying ports.
+  /// Returns the discovered base URL.
+  Future<String> discover() async {
+    // 1) Try reading port file written by backend
+    try {
+      final portFile = File('$_configDir${Platform.pathSeparator}port');
+      if (await portFile.exists()) {
+        final port = (await portFile.readAsString()).trim();
+        if (port.isNotEmpty) {
+          final url = 'http://127.0.0.1:$port/api';
+          if (await _ping(url)) {
+            _baseUrl = url;
+            return _baseUrl;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 2) Try default port and nearby ports
+    for (var p = _defaultPort; p < _defaultPort + 30; p++) {
+      final url = 'http://127.0.0.1:$p/api';
+      if (await _ping(url)) {
+        _baseUrl = url;
+        return _baseUrl;
+      }
+    }
+
+    // 3) Keep current URL (user may configure later)
+    return _baseUrl;
+  }
+
+  Future<bool> _ping(String url) async {
+    try {
+      final resp = await http
+          .get(Uri.parse('$url/session/check'))
+          .timeout(const Duration(milliseconds: 800));
+      return resp.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Set a custom backend URL (e.g. for remote servers)
+  void setBaseUrl(String url) {
+    _baseUrl = url.endsWith('/api') ? url : '$url/api';
+  }
+
+  // ── HTTP helpers ──
 
   Future<dynamic> _request(
     String method,
     String path, {
     Map<String, dynamic>? body,
   }) async {
-    final uri = Uri.parse('$baseUrl$path');
+    final uri = Uri.parse('$_baseUrl$path');
     http.Response resp;
     final headers = {'Content-Type': 'application/json'};
 
@@ -42,7 +112,7 @@ class ApiService {
   }
 
   Future<List<int>> getCaptchaImage() async {
-    final uri = Uri.parse('$baseUrl/captcha');
+    final uri = Uri.parse('$_baseUrl/captcha');
     final resp = await _client.get(uri);
     if (resp.statusCode == 200) {
       return resp.bodyBytes.toList();

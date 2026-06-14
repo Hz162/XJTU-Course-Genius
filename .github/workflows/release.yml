@@ -1,0 +1,113 @@
+name: Build & Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [windows, linux, darwin]
+        goarch: [amd64]
+        include:
+          - goos: windows
+            ext: .exe
+          - goos: linux
+            ext: ''
+          - goos: darwin
+            ext: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Build backend
+        run: |
+          cd backend
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+            go build -ldflags "-s -w" -o xjtu-genius${{ matrix.ext }} .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-${{ matrix.goos }}
+          path: backend/xjtu-genius${{ matrix.ext }}
+
+  build-flutter:
+    needs: build-backend
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows
+          - os: ubuntu-latest
+            target: linux
+          - os: macos-latest
+            target: macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Install Linux deps
+        if: matrix.target == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake pkg-config libgtk-3-dev
+      - name: Download backend
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-${{ matrix.target }}
+          path: backend/
+      - name: Move backend to assets
+        run: |
+          chmod +x backend/xjtu-genius* 2>/dev/null || true
+      - name: Build Flutter
+        run: cd frontend && flutter build ${{ matrix.target }} --release
+      - name: Bundle
+        shell: bash
+        run: |
+          mkdir -p release
+          if [ "${{ matrix.target }}" = "windows" ]; then
+            cp -r frontend/build/windows/x64/runner/Release/* release/
+            cp backend/xjtu-genius.exe release/
+            # Add Windows-specific launcher (optional, since Flutter exe auto-starts backend)
+          elif [ "${{ matrix.target }}" = "linux" ]; then
+            cp -r frontend/build/linux/x64/release/bundle/* release/
+            cp backend/xjtu-genius release/
+          elif [ "${{ matrix.target }}" = "macos" ]; then
+            mkdir -p "XJTU Course Genius.app/Contents/MacOS"
+            cp -r frontend/build/macos/Build/Products/Release/*.app/Contents/* "XJTU Course Genius.app/Contents/"
+            cp backend/xjtu-genius "XJTU Course Genius.app/Contents/MacOS/"
+            mv "XJTU Course Genius.app" release/
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: XJTU-Course-Genius-${{ matrix.target }}
+          path: release/
+
+  release:
+    needs: build-flutter
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: XJTU-Course-Genius-*
+          path: artifacts/
+      - name: Zip each platform
+        run: |
+          cd artifacts
+          for d in XJTU-Course-Genius-*; do
+            zip -r "../$d.zip" "$d"
+          done
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            XJTU-Course-Genius-windows.zip
+            XJTU-Course-Genius-linux.zip
+            XJTU-Course-Genius-macos.zip

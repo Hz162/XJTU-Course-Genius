@@ -5,23 +5,26 @@ import '../theme/app_theme.dart';
 const _channel = MethodChannel('com.xjtu.genius/ime');
 
 class WindowBar extends StatelessWidget {
-  const WindowBar({super.key});
+  final Widget? leading;
+  const WindowBar({super.key, this.leading});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onPanStart: (_) => _channel.invokeMethod('windowDrag'),
-      child: Container(
-        height: 32,
-        color: Colors.transparent,
-        child: Row(
-          children: [
-            const Spacer(),
-            _WinBtn(Icons.minimize_rounded, 'windowMinimize'),
-            _WinBtn(Icons.crop_square_rounded, 'windowMaximize'),
-            _WinBtn(Icons.close_rounded, 'windowClose', isClose: true),
-          ],
-        ),
+    return SizedBox(
+      height: 40,
+      child: Row(
+        children: [
+          if (leading != null) leading!,
+          Expanded(
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (_) => _channel.invokeMethod('windowDrag'),
+            ),
+          ),
+          const _WinBtn(Icons.minimize_rounded, 'windowMinimize'),
+          const _WinBtn(Icons.crop_square_rounded, 'windowMaximize'),
+          const _WinBtn(Icons.close_rounded, 'windowClose', isClose: true),
+        ],
       ),
     );
   }
@@ -36,11 +39,13 @@ class _WinBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 40, height: 32,
+      width: 44, height: 40,
       child: InkWell(
         onTap: () => _channel.invokeMethod(method),
-        child: Icon(icon, size: 16,
-            color: isClose ? dangerColor : textMuted),
+        child: Center(
+          child: Icon(icon, size: 18,
+              color: isClose ? dangerColor : textMuted),
+        ),
       ),
     );
   }
