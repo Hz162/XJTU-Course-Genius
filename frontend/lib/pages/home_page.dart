@@ -1198,11 +1198,8 @@ class _HomePageState extends State<HomePage> {
     final teacher = (item['teacherName'] ?? '').toString();
     final place = (item['teachingPlace'] ?? '').toString();
     final type = (item['classType'] ?? '').toString();
+    final typeName = (item['courseTypeName'] ?? '').toString();
     final accent = accentForType(type);
-    final typeNames = {
-      'TJKC': '主修推荐', 'FANKC': '方案内', 'FAWKC': '方案外',
-      'XGXK': '基础通识', 'TYKC': '体育',
-    };
 
     showDialog(
       context: context,
@@ -1238,7 +1235,7 @@ class _HomePageState extends State<HomePage> {
                                 color: textPrimary,
                                 fontFamily: 'NotoSansSC')),
                         if (type.isNotEmpty)
-                          Text(typeNames[type] ?? type,
+                          Text((typeName.isNotEmpty ? typeName : _typeLabel(type)),
                               style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -1257,7 +1254,7 @@ class _HomePageState extends State<HomePage> {
               _detailRow('课程班号', id),
               _detailRow('授课教师', teacher),
               _detailRow('上课地点', place),
-              _detailRow('课程类别', typeNames[type] ?? type),
+              _detailRow('课程类别', (typeName.isNotEmpty ? typeName : _typeLabel(type))),
               const SizedBox(height: 20),
               Row(
                 children: [
