@@ -75,8 +75,8 @@ func ReloginIfNeeded(client *resty.Client) error {
 					if j.Data.Number != "" {
 						session.SetStudentCode(j.Data.Number)
 					}
-tResetFailCount()
-					session.SaveCookies(client)
+					ResetFailCount()
+						session.SaveCookies(client)
 					return nil
 				}
 			}
@@ -90,7 +90,6 @@ tResetFailCount()
 		client.SetHeader("Token", session.Get().Token)
 	}
 	ResetFailCount()
-tResetFailCount()
 	session.SaveCookies(client)
 	return nil
 }
@@ -342,7 +341,6 @@ func postCASRaw(httpClient *http.Client, casURL, account, encPwd, execution, mfa
 	}
 
 	ResetFailCount()
-tResetFailCount()
 	session.SaveCookiesFromHTTP(httpClient)
 	return nil
 }
@@ -646,7 +644,6 @@ func doRegister(client *resty.Client) error {
 	}
 
 	ResetFailCount()
-tResetFailCount()
 	session.SaveCookies(client)
 	return nil
 }
@@ -731,7 +728,6 @@ func followAndRegister(client *resty.Client, startURL string) error {
 	}
 
 	ResetFailCount()
-tResetFailCount()
 	session.SaveCookies(client)
 	return nil
 }
