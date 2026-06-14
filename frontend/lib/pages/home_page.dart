@@ -494,6 +494,7 @@ class _HomePageState extends State<HomePage> {
         final teacher = (item['teacherName'] ?? '').toString();
         final place = (item['teachingPlace'] ?? '').toString();
         final type = (item['classType'] ?? '').toString();
+        final typeName = (item['courseTypeName'] ?? '').toString();
         final courseAccent = type.isNotEmpty ? accentForType(type) : accent;
         final inWish = _wishList.any((e) => e.isNotEmpty && e[0] == id);
 
@@ -562,7 +563,7 @@ class _HomePageState extends State<HomePage> {
                                   color: courseAccent.withAlpha(25),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: Text(_typeLabel(type),
+                                child: Text(typeName.isNotEmpty ? typeName : _typeLabel(type),
                                     style: TextStyle(
                                         fontSize: 10.5,
                                         fontWeight: FontWeight.w600,

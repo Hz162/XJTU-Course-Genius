@@ -5,7 +5,8 @@ type CourseInfo struct {
 	CourseName      string `json:"courseName"`
 	TeacherName     string `json:"teacherName"`
 	TeachingPlace   string `json:"teachingPlace"`
-	ClassType       string `json:"classType"`  // TJKC, FANKC, FAWKC, XGXK, TYKC
+	ClassType       string `json:"classType"`
+	CourseTypeName  string `json:"courseTypeName,omitempty"`
 	Campus          string `json:"campus"`
 }
 
@@ -15,6 +16,7 @@ type CourseResult struct {
 	TeacherName     string `json:"teacherName"`
 	TeachingPlace   string `json:"teachingPlace"`
 	ClassType       string `json:"classType"`
+	CourseTypeName  string `json:"courseTypeName"`
 	Campus          string `json:"campus"`
 	CampusName      string `json:"campusName"`
 	Credit          string `json:"credit"`

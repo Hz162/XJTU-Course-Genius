@@ -55,6 +55,7 @@ func QuerySelected(client *resty.Client) ([]CourseResult, error) {
 			TeacherName:     d.TeacherName,
 			TeachingPlace:   d.TeachingPlace,
 			ClassType:       d.CourseType,
+				CourseTypeName:  d.CourseTypeName,
 			Campus:          d.Campus,
 			CampusName:      d.CampusName,
 			Credit:          d.Credit,
@@ -179,6 +180,7 @@ func parseDataList(raw json.RawMessage, classType string, hasTCLists, isXGXK boo
 					TeacherName:     tc.TeacherName,
 					TeachingPlace:   tc.TeachingPlace,
 					ClassType:       classType,
+					CourseTypeName:  classType,
 					Campus:          item.Campus,
 				})
 			}
@@ -207,6 +209,7 @@ func parseDataList(raw json.RawMessage, classType string, hasTCLists, isXGXK boo
 					TeacherName:     tc.TeacherName,
 					TeachingPlace:   tc.TeachingPlace,
 					ClassType:       classType,
+					CourseTypeName:  classType,
 					Campus:          tc.Campus,
 				})
 			}
