@@ -77,6 +77,13 @@ jobs:
           & $out /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="$env:RUNNER_TEMP\InnoSetup"
           echo "$env:RUNNER_TEMP\InnoSetup" >> $env:GITHUB_PATH
 
+      - name: Download Chinese ISL
+        shell: pwsh
+        run: |
+          $langDir = "$env:RUNNER_TEMP\InnoSetup\Languages"
+          mkdir $langDir -Force
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/ChineseSimplified.isl" -OutFile "$langDir\ChineseSimplified.isl"
+
       - name: Build installer
         shell: bash
         run: iscc scripts/setupconfig.iss

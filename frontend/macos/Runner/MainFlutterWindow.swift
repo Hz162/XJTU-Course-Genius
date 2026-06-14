@@ -1,4 +1,5 @@
 import Cocoa
+import Carbon
 import FlutterMacOS
 
 // Saved input source for IME restore

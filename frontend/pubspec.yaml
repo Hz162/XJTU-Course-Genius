@@ -15,7 +15,6 @@ dependencies:
   provider: ^6.1.1
   shared_preferences: ^2.2.2
   fluentui_system_icons: ^1.1.221
-  window_manager: ^0.3.8
 
 dev_dependencies:
   flutter_test:

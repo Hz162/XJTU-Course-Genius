@@ -67,10 +67,24 @@ static gboolean on_window_focus_in(GtkWidget* widget, GdkEventFocus* event,
   return FALSE;
 }
 
-static void respond_success(FlMethodChannel* channel,
-                             FlMethodCall* method_call) {
+// Convenience: respond with TRUE
+static void respond_success(FlMethodCall* method_call) {
   g_autoptr(FlValue) result = fl_value_new_bool(TRUE);
-  fl_method_call_respond_success(channel, method_call, result, nullptr);
+  g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+      fl_method_success_response_new(result));
+  g_autoptr(GError) error = NULL;
+  if (!fl_method_call_respond(method_call, response, &error)) {
+    g_warning("Failed to respond: %s", error->message);
+  }
+}
+
+static void respond_not_implemented(FlMethodCall* method_call) {
+  g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+      fl_method_not_implemented_response_new());
+  g_autoptr(GError) error = NULL;
+  if (!fl_method_call_respond(method_call, response, &error)) {
+    g_warning("Failed to respond: %s", error->message);
+  }
 }
 
 static void ime_method_call_handler(FlMethodChannel* channel,
@@ -94,10 +108,10 @@ static void ime_method_call_handler(FlMethodChannel* channel,
       }
       pclose(fp);
     }
-    respond_success(channel, method_call);
+    respond_success(method_call);
   } else if (g_strcmp0(method, "switchToEnglish") == 0) {
     ime_switch_to_english();
-    respond_success(channel, method_call);
+    respond_success(method_call);
   } else if (g_strcmp0(method, "restoreIme") == 0) {
     if (saved_layout && saved_layout[0] != '\0') {
       char cmd[256];
@@ -106,10 +120,10 @@ static void ime_method_call_handler(FlMethodChannel* channel,
     }
     g_free(saved_layout);
     saved_layout = NULL;
-    respond_success(channel, method_call);
+    respond_success(method_call);
   } else if (g_strcmp0(method, "windowMinimize") == 0) {
     if (window) gtk_window_iconify(window);
-    respond_success(channel, method_call);
+    respond_success(method_call);
   } else if (g_strcmp0(method, "windowMaximize") == 0) {
     if (window) {
       if (gtk_window_is_maximized(window)) {
@@ -118,15 +132,15 @@ static void ime_method_call_handler(FlMethodChannel* channel,
         gtk_window_maximize(window);
       }
     }
-    respond_success(channel, method_call);
+    respond_success(method_call);
   } else if (g_strcmp0(method, "windowClose") == 0) {
     if (window) gtk_window_close(window);
-    respond_success(channel, method_call);
+    respond_success(method_call);
   } else if (g_strcmp0(method, "windowDrag") == 0) {
     if (window) gtk_window_begin_move_drag(window, 1, 1, 0, 0);
-    respond_success(channel, method_call);
+    respond_success(method_call);
   } else {
-    fl_method_call_respond_not_implemented(channel, method_call, nullptr);
+    respond_not_implemented(method_call);
   }
 }
 
