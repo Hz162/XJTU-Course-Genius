@@ -337,7 +337,6 @@ class _LoginPageState extends State<LoginPage> {
           TextField(
             controller: _pwdCtl,
             focusNode: _pwdFocus,
-            onChanged: (_) => _resetCaptcha(),
             keyboardType: TextInputType.visiblePassword,
             inputFormatters: [
               FilteringTextInputFormatter.deny(RegExp(r'[一-鿿]')),
