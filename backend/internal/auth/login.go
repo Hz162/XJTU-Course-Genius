@@ -24,6 +24,20 @@ var failCount int
 func ResetFailCount()          { failCount = 0 }
 func IsCaptchaRequired() bool  { return failCount >= 3 }
 
+// isCaptchaPage checks if CAS returned the login page with captcha required.
+// CAS shows captcha when failN reaches the server threshold (typically 3).
+func isCaptchaPage(body []byte) bool {
+	s := string(body)
+	// Must be the CAS login page (not a redirect or other page)
+	if !strings.Contains(s, "fm1") || !strings.Contains(s, "execution") {
+		return false
+	}
+	// Check for captcha indicators in the page
+	return strings.Contains(s, "captcha.jpg") ||
+		strings.Contains(s, "id=\"captcha\"") ||
+		strings.Contains(s, "输入验证码")
+}
+
 // ── session alive check ──
 
 func IsSessionAlive(client *resty.Client) bool {
@@ -110,7 +124,7 @@ func FullLogin(client *resty.Client, account, password string) error {
 }
 
 func FullLoginWithCaptcha(client *resty.Client, account, password, captcha string) error {
-	// check if captcha is required
+	// Match XJTUToolBox: client-side fail count simulates CAS server threshold
 	if IsCaptchaRequired() && captcha == "" {
 		return &CaptchaNeededError{}
 	}
@@ -271,6 +285,11 @@ func postCASRaw(httpClient *http.Client, casURL, account, encPwd, execution, mfa
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 
+	// CAS may return reCAPTCHA page instead of redirect
+	if isCaptchaPage(body) {
+		failCount++
+		return &CaptchaNeededError{}
+	}
 
 	// Check for alert error
 	if msg := extractAlertMessage(body); msg != "" {
