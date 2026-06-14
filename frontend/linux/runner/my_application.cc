@@ -33,16 +33,6 @@ static void ime_switch_to_english() {
   system("setxkbmap us 2>/dev/null");
 }
 
-static gboolean delayed_ime_restore(gpointer user_data) {
-  if (saved_layout && saved_layout[0] != '\0') {
-    char cmd[256];
-    snprintf(cmd, sizeof(cmd), "setxkbmap %s 2>/dev/null", saved_layout);
-    system(cmd);
-  }
-  focus_out_timer = 0;
-  return G_SOURCE_REMOVE;
-}
-
 static gboolean on_window_focus_out(GtkWidget* widget, GdkEventFocus* event,
                                      gpointer user_data) {
   if (focus_out_timer) g_source_remove(focus_out_timer);
