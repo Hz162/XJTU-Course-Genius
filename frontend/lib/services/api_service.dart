@@ -86,6 +86,9 @@ class ApiService {
     return (data is List) ? data : <dynamic>[];
   }
 
+  Future<void> dropCourse(String teachingClassId) =>
+      _request('POST', '/courses/drop', body: {'teachingClassId': teachingClassId});
+
   Future<Map<String, dynamic>> queryCourses(String type, {String keyword = ''}) async {
     final qs = keyword.isNotEmpty ? '?keyword=$keyword' : '';
     final data = await _request('GET', '/courses/query/$type$qs');

@@ -37,7 +37,8 @@ func NewRouter() *chi.Mux {
 		r.Post("/batches/select", s.HandleEnterRound)
 
 		r.Get("/courses/selected", s.HandleSelectedCourses)
-		r.Get("/courses/query/{type}", s.HandleQueryCourses) // type: TJKC, FANKC, FAWKC, XGXK, TYKC
+		r.Post("/courses/drop", s.HandleDropCourse)
+		r.Get("/courses/query/{type}", s.HandleQueryCourses)
 
 		r.Get("/campus", s.HandleCampusList)
 		r.Post("/campus/set", s.HandleCampusSet)

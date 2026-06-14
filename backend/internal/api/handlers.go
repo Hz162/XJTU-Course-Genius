@@ -2,7 +2,7 @@ package api
 
 import (
 	"encoding/json"
-	stdlog "log"
+	"log"
 	"net/http"
 
 	"xjtu-course-genius/internal/auth"
@@ -50,7 +50,7 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Captcha retry: reuse the saved client (same CAS session/execution as captcha image)
 	var client *resty.Client
-	stdlog.Printf("[captcha] HandleLogin: captcha=%q (len=%d) hasSavedClient=%v", req.Captcha, len(req.Captcha), s.client != nil)
+	log.Printf("[captcha] HandleLogin: captcha=%q (len=%d) hasSavedClient=%v", req.Captcha, len(req.Captcha), s.client != nil)
 	if req.Captcha != "" && s.client != nil {
 		client = s.client
 	} else {
@@ -258,6 +258,22 @@ func (s *Server) HandleSelectedCourses(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, results)
 }
 
+func (s *Server) HandleDropCourse(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		TeachingClassID string `json:"teachingClassId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "参数错误"})
+		return
+	}
+	log.Printf("[api] 退课 %s", req.TeachingClassID)
+	if err := course.DeleteVolunteer(s.client, req.TeachingClassID); err != nil {
+		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+
 func (s *Server) HandleQueryCourses(w http.ResponseWriter, r *http.Request) {
 	classType := chi.URLParam(r, "type")
 	keyword := r.URL.Query().Get("keyword")
@@ -355,5 +371,5 @@ func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 }
 
 func init() {
-	stdlog.SetFlags(stdlog.Ltime)
+	log.SetFlags(log.Ltime)
 }

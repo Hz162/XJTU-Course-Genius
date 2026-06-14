@@ -574,9 +574,15 @@ class _HomePageState extends State<HomePage> {
                       ],
                     ),
                   ),
-                  if (_currentView == 'selected')
-                    const SizedBox.shrink()
-                  else if (inWish)
+                  if (_currentView == 'selected') ...[
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded,
+                          size: 20, color: dangerColor),
+                      tooltip: '退课',
+                      onPressed: () => _confirmDropCourse(item),
+                    ),
+                  ] else if (inWish)
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
@@ -1313,6 +1319,37 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmDropCourse(Map<String, dynamic> item) async {
+    final name = (item['courseName'] ?? '').toString();
+    final id = (item['teachingClassId'] ?? '').toString();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('确认退课'),
+        content: Text('确定要退选「$name」($id) 吗？\n此操作不可撤销。'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: dangerColor),
+            child: const Text('确认退课'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await api.dropCourse(id);
+      _showError('退课成功');
+      // Refresh selected courses
+      _loadCourseData('selected');
+    } catch (e) {
+      _showError('退课失败: ${e.toString().replaceFirst("Exception: ", "")}');
+    }
   }
 
   void _showDeleteConfirm(int i, String name) {

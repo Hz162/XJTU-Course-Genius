@@ -1,0 +1,7 @@
+XJTU Course Genius backend listening on http://127.0.0.1:18720
+2026/06/14 22:48:53 "POST http://127.0.0.1:18720/api/login HTTP/1.1" from 127.0.0.1:10249 - 200 56B in 1.1812148s
+2026/06/14 22:48:53 "POST http://127.0.0.1:18720/api/batches/select HTTP/1.1" from 127.0.0.1:11218 - 200 30B in 125.5731ms
+2026/06/14 22:48:53 "POST http://127.0.0.1:18720/api/config HTTP/1.1" from 127.0.0.1:11224 - 200 16B in 545.6µs
+2026/06/14 22:48:53 "POST http://127.0.0.1:18720/api/selection/start HTTP/1.1" from 127.0.0.1:11225 - 200 21B in 0s
+2026/06/14 22:48:56 "GET http://127.0.0.1:18720/api/selection/status HTTP/1.1" from 127.0.0.1:7370 - 200 1265B in 0s
+2026/06/14 22:48:56 "POST http://127.0.0.1:18720/api/selection/stop HTTP/1.1" from 127.0.0.1:7371 - 200 21B in 0s
