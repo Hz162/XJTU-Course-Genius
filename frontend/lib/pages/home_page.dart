@@ -108,14 +108,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _addToWishList(Map<String, dynamic> item) async {
-    final campus = (item['campus'] ?? '').toString();
     final entry = [
       (item['teachingClassId'] ?? '').toString(),
       (item['courseName'] ?? '').toString(),
       (item['teacherName'] ?? '').toString(),
       (item['teachingPlace'] ?? '').toString(),
       (item['classType'] ?? _currentView).toString(),
-      campus.isNotEmpty ? campus : _currentCampus,
+      _currentCampus,
     ];
     if (_wishList.any((e) => e.isNotEmpty && e[0] == entry[0])) {
       _showError('已在抢课列表中');

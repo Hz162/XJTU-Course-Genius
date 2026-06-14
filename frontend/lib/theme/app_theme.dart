@@ -56,15 +56,29 @@ const Gradient accentGradient = LinearGradient(
 );
 
 // ── Accent color map (course type → color) ──
+const _accentPalette = [
+  primaryColor, successColor, warningColor,
+  accentPurple, accentTeal, accentPink,
+  Color(0xFFE67E22), Color(0xFF1ABC9C), Color(0xFFE74C3C),
+  Color(0xFF3498DB), Color(0xFF2ECC71), Color(0xFF9B59B6),
+];
+
 Color accentForType(String type) {
+  if (type.isEmpty) return textMuted;
+  // Known course query types — fixed colors for consistency
   switch (type) {
     case 'TJKC': return primaryColor;
     case 'FANKC': return successColor;
     case 'FAWKC': return warningColor;
     case 'XGXK': return accentPurple;
     case 'TYKC': return accentTeal;
-    default: return textMuted;
   }
+  // Hash unknown types (numeric courseType, etc.) to a palette color
+  int hash = 0;
+  for (int i = 0; i < type.length; i++) {
+    hash = (hash * 31 + type.codeUnitAt(i)) & 0x7fffffff;
+  }
+  return _accentPalette[hash % _accentPalette.length];
 }
 
 ThemeData appTheme() => ThemeData(
