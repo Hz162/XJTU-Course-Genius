@@ -417,12 +417,7 @@ func GetCaptchaImage(client *resty.Client) ([]byte, error) {
 
 // CompleteMFALogin finishes login after regular MFA verification.
 func CompleteMFALogin(client *resty.Client) error {
-	// After MFA, CAS has marked auth as complete
-	_, err := client.R().Get(baseURL)
-	if err != nil {
-		return fmt.Errorf("MFA后访问选课系统失败: %w", err)
-	}
-	return followAndRegister(client, "")
+	return followAndRegister(client, baseURL)
 }
 
 // FinishSafetyVerifyLogin submits the Safety Verify form after MFA verification.
@@ -619,22 +614,14 @@ func doRegister(client *resty.Client) error {
 	}
 	json.Unmarshal(r.Body(), &j)
 
-	codeOK := false
-	if codeIsOK(j.Code) {
-		codeOK = true
-	}
-	if !codeOK {
-		// Try with account as number
+	if !codeIsOK(j.Code) {
 		regURL = fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/student/register.do?number=%s", baseURL, s.Account)
 		r, err = client.R().Get(regURL)
 		if err == nil {
 			json.Unmarshal(r.Body(), &j)
-			if codeIsOK(j.Code) {
-				codeOK = true
-			}
 		}
 	}
-	if !codeOK {
+	if !codeIsOK(j.Code) {
 		return fmt.Errorf("注册失败: 无法获取token, 响应=%s", string(r.Body()))
 	}
 
@@ -710,24 +697,15 @@ func followAndRegister(client *resty.Client, startURL string) error {
 	}
 	json.Unmarshal(r.Body(), &j)
 
-	codeOK := false
-	if codeIsOK(j.Code) {
-		codeOK = true
+	if !codeIsOK(j.Code) && regCode == "null" {
+		regURL = fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/student/register.do?number=%s", baseURL, s.Account)
+		r, err = client.R().Get(regURL)
+		if err == nil {
+			json.Unmarshal(r.Body(), &j)
+		}
 	}
-	if !codeOK {
-		if regCode == "null" {
-			regURL = fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/student/register.do?number=%s", baseURL, s.Account)
-			r, err = client.R().Get(regURL)
-			if err == nil {
-				json.Unmarshal(r.Body(), &j)
-				if codeIsOK(j.Code) {
-					codeOK = true
-				}
-			}
-		}
-		if !codeOK {
-			return fmt.Errorf("注册失败: 无法获取token, 响应=%s", string(r.Body()))
-		}
+	if !codeIsOK(j.Code) {
+		return fmt.Errorf("注册失败: 无法获取token, 响应=%s", string(r.Body()))
 	}
 
 	if j.Data.Token != "" {

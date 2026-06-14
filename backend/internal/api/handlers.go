@@ -58,6 +58,9 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	err = auth.FullLoginWithCaptcha(client, req.Account, req.Password, req.Captcha)
 	if err != nil {
+		// Save client cookies so MFA/account-choice/captcha flows can continue
+		session.SaveCookiesFromHTTP(client.GetClient())
+		s.client = client
 		if _, ok := err.(*auth.CaptchaNeededError); ok {
 			writeJSON(w, 200, map[string]interface{}{
 				"captcha_required": true,
@@ -142,6 +145,7 @@ func (s *Server) HandleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		}
 		auth.ClearMFA()
 		session.SaveCookies(client)
+		client.SetHeader("Token", session.Get().Token)
 		s.client = client
 		writeJSON(w, 200, map[string]interface{}{
 			"success":     true,
@@ -159,6 +163,7 @@ func (s *Server) HandleMFAVerify(w http.ResponseWriter, r *http.Request) {
 
 	auth.ClearMFA()
 	session.SaveCookies(client)
+		client.SetHeader("Token", session.Get().Token)
 	s.client = client
 
 	writeJSON(w, 200, map[string]interface{}{
@@ -190,6 +195,7 @@ func (s *Server) HandleChooseAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	session.SaveCookies(client)
+		client.SetHeader("Token", session.Get().Token)
 	s.client = client
 	writeJSON(w, 200, map[string]interface{}{
 		"success":     true,
@@ -320,6 +326,7 @@ func (s *Server) HandleRelogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	session.SaveCookies(client)
+		client.SetHeader("Token", session.Get().Token)
 	s.client = client
 	writeJSON(w, 200, map[string]string{"status": "ok"})
 }
