@@ -223,14 +223,9 @@ func (e *Engine) loop() {
 			}
 
 			classType := ""
-			campus := ""
+			campus := session.Get().Campus
 			if len(courses[j]) > 4 {
 				classType = courses[j][4]
-			}
-			if len(courses[j]) > 5 {
-				campus = courses[j][5]
-			} else {
-				campus = session.Get().Campus
 			}
 
 			if err := Volunteer(client, courses[j][0], classType, campus); err != nil {
