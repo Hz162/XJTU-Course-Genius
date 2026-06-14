@@ -88,5 +88,6 @@ func EnterRound(client *resty.Client, batchCode string) error {
 			session.SetCampusList(list)
 		}
 	}
+	go WarmupCache(client)
 	return nil
 }

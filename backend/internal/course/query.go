@@ -6,6 +6,7 @@ import (
 	stdlog "log"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	"xjtu-course-genius/internal/session"
@@ -14,6 +15,52 @@ import (
 )
 
 const baseURL = "https://xkfw.xjtu.edu.cn"
+
+// ── Course cache (per type+campus+batch, invalidated on change) ──
+var courseCache = struct {
+	mu   sync.RWMutex
+	data map[string][]CourseInfo
+}{data: make(map[string][]CourseInfo)}
+
+func cacheKey(classType, campus string) string {
+	return fmt.Sprintf("%s:%s", classType, campus)
+}
+
+func getCached(classType, campus string) ([]CourseInfo, bool) {
+	courseCache.mu.RLock()
+	defer courseCache.mu.RUnlock()
+	courses, ok := courseCache.data[cacheKey(classType, campus)]
+	return courses, ok
+}
+
+func setCache(classType, campus string, courses []CourseInfo) {
+	courseCache.mu.Lock()
+	defer courseCache.mu.Unlock()
+	courseCache.data[cacheKey(classType, campus)] = courses
+}
+
+func WarmupCache(client *resty.Client) {
+	s := session.Get()
+	types := []string{"TJKC", "FANKC", "FAWKC", "XGXK", "TYKC"}
+	for _, t := range types {
+		if _, ok := getCached(t, s.Campus); ok {
+			continue
+		}
+		cfg, ok := queryConfigs[t]
+		if !ok { continue }
+		isXGXK := t == "XGXK"
+		courses, _, err := fetchAllPages(client, cfg.URL, t, "", cfg.HasTCLists, isXGXK)
+		if err == nil {
+			setCache(t, s.Campus, courses)
+		}
+	}
+}
+
+func ClearCourseCache() {
+	courseCache.mu.Lock()
+	defer courseCache.mu.Unlock()
+	courseCache.data = make(map[string][]CourseInfo)
+}
 
 func timestamp() int64 { return time.Now().UnixMilli() }
 
@@ -86,29 +133,87 @@ func QueryCourses(client *resty.Client, classType, keyword string) ([]CourseInfo
 	if classType == "ALL" {
 		return queryAllTypes(client, keyword)
 	}
+
+	campus := session.Get().Campus
+
+	// Use cache when no keyword, filter cache when keyword provided
+	if keyword == "" {
+		if cached, ok := getCached(classType, campus); ok {
+			return cached, len(cached), nil
+		}
+	} else {
+		if cached, ok := getCached(classType, campus); ok {
+			kw := strings.ToLower(keyword)
+			var filtered []CourseInfo
+			for _, c := range cached {
+				if strings.Contains(strings.ToLower(c.CourseName), kw) ||
+					strings.Contains(strings.ToLower(c.TeacherName), kw) {
+					filtered = append(filtered, c)
+				}
+			}
+			return filtered, len(filtered), nil
+		}
+	}
+
 	cfg, ok := queryConfigs[classType]
 	if !ok {
 		return nil, 0, fmt.Errorf("未知的课程类型: %s", classType)
 	}
 	isXGXK := classType == "XGXK"
-	return fetchAllPages(client, cfg.URL, classType, keyword, cfg.HasTCLists, isXGXK)
+	courses, total, err := fetchAllPages(client, cfg.URL, classType, "", cfg.HasTCLists, isXGXK)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Cache full list (no keyword)
+	setCache(classType, campus, courses)
+
+	if keyword != "" {
+		kw := strings.ToLower(keyword)
+		var filtered []CourseInfo
+		for _, c := range courses {
+			if strings.Contains(strings.ToLower(c.CourseName), kw) ||
+				strings.Contains(strings.ToLower(c.TeacherName), kw) {
+				filtered = append(filtered, c)
+			}
+		}
+		return filtered, len(filtered), nil
+	}
+	return courses, total, nil
 }
 
 func queryAllTypes(client *resty.Client, keyword string) ([]CourseInfo, int, error) {
 	var all []CourseInfo
 	types := []string{"TJKC", "FANKC", "FAWKC", "XGXK", "TYKC"}
+
+	// First ensure current campus is cached (fetch all types)
+	campus := session.Get().Campus
 	for _, t := range types {
-		cfg, ok := queryConfigs[t]
-		if !ok {
-			continue
+		if _, ok := getCached(t, campus); !ok {
+			cfg, okCfg := queryConfigs[t]
+			if !okCfg { continue }
+			isXGXK := t == "XGXK"
+			courses, _, err := fetchAllPages(client, cfg.URL, t, "", cfg.HasTCLists, isXGXK)
+			if err == nil {
+				setCache(t, campus, courses)
+			}
 		}
-		isXGXK := t == "XGXK"
-		courses, _, err := fetchAllPages(client, cfg.URL, t, keyword, cfg.HasTCLists, isXGXK)
-		if err != nil {
-			continue
-		}
-		all = append(all, courses...)
 	}
+
+	// Search across ALL cached types+campuses
+	kw := strings.ToLower(keyword)
+	courseCache.mu.RLock()
+	for _, courses := range courseCache.data {
+		for _, c := range courses {
+			if keyword == "" ||
+				strings.Contains(strings.ToLower(c.CourseName), kw) ||
+				strings.Contains(strings.ToLower(c.TeacherName), kw) {
+				all = append(all, c)
+			}
+		}
+	}
+	courseCache.mu.RUnlock()
+
 	return all, len(all), nil
 }
 
