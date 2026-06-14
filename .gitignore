@@ -45,4 +45,6 @@ Thumbs.db
 Desktop.ini
 .vscode/
 #浏览器驱动
-.wdm/
+.wdm/backend/cas_test.go
+backend/*.log
+backend/test_captcha.jpg
