@@ -81,12 +81,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadCampus() async {
     try {
       final list = await api.getCampusList();
-      if (mounted) setState(() {
-        _campusList = list;
-        if (_currentCampus.isEmpty && list.isNotEmpty) {
-          _currentCampus = (list[0]['code'] ?? '').toString();
-        }
-      });
+      if (mounted) setState(() => _campusList = list);
     } catch (_) {}
   }
 

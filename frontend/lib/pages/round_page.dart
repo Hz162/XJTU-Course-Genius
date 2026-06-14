@@ -59,13 +59,14 @@ class _RoundPageState extends State<RoundPage> {
     }
     setState(() => _loading = true);
     try {
-      await widget.api.enterRound(batch.code);
+      final roundResult = await widget.api.enterRound(batch.code);
+      final campus = (roundResult['campus'] ?? widget.campus).toString();
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
             builder: (_) =>
-                HomePage(api: widget.api, initialCampus: widget.campus)),
+                HomePage(api: widget.api, initialCampus: campus)),
       );
     } catch (e) {
       if (!mounted) return;
