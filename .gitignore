@@ -1,51 +1,41 @@
-# Word
-*.doc
-*.docx
-*.docm
-*.dot
-*.dotx
-*.dotm
-
-# Excel
-*.xls
-*.xlsx
-*.xlsm
-*.xlsb
-*.xltx
-*.xltm
-
-# PowerPoint
-*.ppt
-*.pptx
-*.pptm
-*.potx
-*.ppsx
-
-# 其他（可选）
-*.pdf
-*.one
-*.onepkg
-*.onetoc2
-*.mdb
-*.accdb
-*.vsd
-*.vsdx
-*.vsdm
-*.pub
-*.mpp
-# 可执行文件
-XJTUCourseGeniusSetup.exe
-
-# Office 临时/锁文件与通用临时
-~$*
-*.tmp
-
-# Windows 噪声（可选）
+# ── OS ──
+.DS_Store
 Thumbs.db
 Desktop.ini
-.vscode/
-#浏览器驱动
-.wdm/backend/cas_test.go
-backend/*.log
-backend/test_captcha.jpg
-backend/config.json
+
+# ── IDE ──
+.idea/
+
+# ── AI / Tooling ──
+.claude/
+.superpowers/
+
+# ── Flutter / Dart ──
+.dart_tool/
+build/
+.flutter-plugins*
+*.iml
+
+# ── Go ──
+*.exe
+*.exe~
+*.log
+*.test
+backend/xjtu-genius-*
+!frontend/windows/runner/resources/*.ico
+
+# ── Python ──
+__pycache__/
+*.pyc
+
+# ── Release ──
+dist/
+
+# ── Temp ──
+*~
+*.tmp
+*.bak
+*.swp
+
+# ── Archive (old version) ──
+.wdm/
