@@ -55,10 +55,27 @@ bool FlutterWindow::OnCreate() {
             saved_layout_ = 0;
           }
           result->Success();
+        } else if (call.method_name() == "windowMinimize") {
+          ShowWindow(hwnd_, SW_MINIMIZE);
+          result->Success();
+        } else if (call.method_name() == "windowMaximize") {
+          WINDOWPLACEMENT wp = {sizeof(wp)};
+          GetWindowPlacement(hwnd_, &wp);
+          ShowWindow(hwnd_, (wp.showCmd == SW_SHOWMAXIMIZED) ? SW_RESTORE : SW_SHOWMAXIMIZED);
+          result->Success(flutter::EncodableValue(wp.showCmd != SW_SHOWMAXIMIZED));
+        } else if (call.method_name() == "windowClose") {
+          PostMessage(hwnd_, WM_CLOSE, 0, 0);
+          result->Success();
         } else {
           result->NotImplemented();
         }
       });
+
+  // Frameless: remove title bar, keep resizable border
+  SetWindowLongPtr(hwnd_, GWL_STYLE,
+      GetWindowLongPtr(hwnd_, GWL_STYLE) & ~WS_CAPTION);
+  SetWindowPos(hwnd_, nullptr, 0, 0, 0, 0,
+      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();

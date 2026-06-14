@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 const primaryColor = Color(0xFF4F6EF7);
 const primaryLight = Color(0xFF818CF8);
 const primarySoft = Color(0xFFEEF2FF);
+const logoBlue = Color(0xFF7DB5D6);
+const logoBlueLight = Color(0xFFB8D9ED);
 
 const successColor = Color(0xFF22C55E);
 const warningColor = Color(0xFFF59E0B);

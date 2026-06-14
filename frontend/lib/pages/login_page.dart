@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../services/ime_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/window_bar.dart';
 import 'round_page.dart';
 import 'mfa_page.dart';
 
@@ -202,9 +203,13 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: bgColor,
-      body: Focus(
-        onKeyEvent: _handleKey,
-        child: Center(
+      body: Column(
+        children: [
+          const WindowBar(),
+          Expanded(
+            child: Focus(
+              onKeyEvent: _handleKey,
+              child: Center(
           child: _loading
               ? const Column(
                   mainAxisSize: MainAxisSize.min,
@@ -220,8 +225,11 @@ class _LoginPageState extends State<LoginPage> {
                   ],
                 )
               : _buildForm(),
+            ),
+          ),
         ),
-      ),
+      ],
+    ),
     );
   }
 
