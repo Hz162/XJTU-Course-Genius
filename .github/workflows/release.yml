@@ -5,6 +5,9 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ── Go backend: cross-compile all 3 platforms ──
   build-backend:
@@ -24,6 +27,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache-dependency-path: backend/go.sum
       - run: |
           cd backend
           GOOS=${{ matrix.goos }} GOARCH=amd64 \
