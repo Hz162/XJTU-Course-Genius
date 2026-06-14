@@ -1,90 +1,95 @@
 # XJTU Course Genius
 
-西安交通大学选课辅助工具 / XJTU Course Selection Assistant
+西安交通大学选课辅助工具 — 新版前后端分离架构。
 
-## 简介 / Introduction
-
-这是一个基于 Python (PyQt5 + Selenium + Requests) 开发的西安交通大学自动选课工具。
-它结合了 Selenium 的浏览器指纹获取能力和 Requests 的高效网络请求，支持多种选课模式和 MFA 二次验证。
-
-## 功能特性 / Features
-
-- **图形化界面 (GUI)**: 基于 PyQt5 开发，操作简单直观。
-- **高效选课**: 使用 `requests` 库进行核心选课操作，速度快于纯浏览器模拟。
-- **MFA 支持**: 完美支持学校的统一身份认证二次验证（短信/邮箱验证码）。
-- **智能驱动管理**:
-  - 自动检测本地 Edge 浏览器版本。
-  - **国内加速**: 默认使用淘宝镜像源 (npmmirror) 下载 Edge WebDriver，解决国内网络无法下载驱动的问题。
-  - 自动处理 SSL 证书错误。
-- **多轮次支持**: 支持选择不同的选课轮次。
-- **冲突课程处理**: 支持添加和删除冲突课程。
-- **多种选课类型**: 支持主修推荐、方案内跨年级、方案外、基础通识、体育课等多种类型。
-
-## 环境要求 / Requirements
-
-- **操作系统**: Windows (推荐 Windows 10/11)
-- **浏览器**: Microsoft Edge (必须安装)
-- **Python**: 3.8+ (如果从源码运行)
-
-## 安装与运行 / Installation & Usage
-
-### 方式一：使用打包好的程序 (推荐)
-
-直接下载并运行 `XJTUCourseGeniusSetup.exe` 安装包。
-
-### 方式二：从源码运行
-
-1. **克隆仓库**
-
-    ```bash
-    git clone https://github.com/Hz162/XJTU-Course-Genius.git
-    cd XJTU-Course-Genius
-    ```
-
-2. **安装依赖**
-
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-3. **运行程序**
-
-    ```bash
-    python login.py
-    ```
-
-## 开发注意事项 / Development Notes
-
-在 `login.py` 文件的开头部分有以下代码：
-
-```python
-#sys.stdout = open(os.devnull, 'w')
-#sys.stderr = open(os.devnull, 'w')
+```
+┌─────────────────────────┐     ┌──────────────────────────┐
+│   Flutter 前端           │────▶│   Go 后端 (chi + resty)   │────▶  xkfw.xjtu.edu.cn
+│   Windows / Linux / macOS│     │   127.0.0.1:18720        │      (CAS + 选课 API)
+│   Material 3 UI          │     │   CAS 登录 + 抢课引擎     │
+└─────────────────────────┘     └──────────────────────────┘
 ```
 
-- **调试运行 (Debug)**: 请保持注释状态（保留 `#`）。这样可以在终端看到详细的日志输出，便于排查问题。
-- **编译打包 (Build)**: 建议取消注释（去掉 `#`）。这可以将标准输出重定向到空设备，防止在无控制台模式下运行时因输出缓冲区问题导致程序崩溃。
+## 项目结构
 
-## 常见问题 / FAQ
+```
+XJTU-Course-Genius/
+├── frontend/                  # Flutter 桌面客户端
+│   ├── lib/                   #   Dart 源码
+│   │   ├── pages/             #     登录/MFA/主页/轮次
+│   │   ├── widgets/           #     侧边栏
+│   │   ├── services/          #     API 客户端 + IME 服务
+│   │   ├── models/            #     数据模型
+│   │   └── theme/             #     Material 3 主题
+│   ├── windows/runner/        #   Windows IME 原生代码
+│   ├── linux/runner/          #   Linux IME 原生代码
+│   ├── macos/Runner/          #   macOS IME 原生代码
+│   └── test/                  #   自动化测试
+│
+├── backend/                   # Go API 服务端
+│   ├── internal/
+│   │   ├── api/               #   HTTP handlers + 路由
+│   │   ├── auth/              #   CAS 登录 / MFA / 加密 / 指纹
+│   │   ├── course/            #   课程查询 / 选课提交 / 抢课引擎
+│   │   ├── session/           #   全局状态 + Cookie 管理
+│   │   └── config/            #   配置文件读写
+│   ├── main.go
+│   └── go.mod
+│
+├── login.py                   # 原版 PyQt5 客户端（已弃用，保留参考）
+├── docs/                      # 设计文档
+└── README.md
+```
 
-**Q: 启动时提示驱动下载失败？**
-A: 程序内置了多重容错机制：
+## 快速开始
 
-1. 优先检测本地 Edge 版本并从淘宝镜像下载对应驱动。
-2. 如果自动下载失败，程序会尝试查找根目录下的 `msedgedriver.exe`。
-3. 您可以手动下载对应版本的 `msedgedriver.exe` 放到程序目录下。下载地址：[淘宝镜像源](https://npmmirror.com/mirrors/edgedriver/)
+### 1. 启动后端
 
-**Q: 登录时提示“用户取消或验证失败”？**
-A: 这通常是因为触发了 MFA 二次验证但未完成。请在弹出的验证窗口中选择验证方式（短信或邮箱），发送验证码并填写正确，点击“验证”按钮，等待提示“验证成功”后再关闭窗口。
+```bash
+cd backend
+go build -o xjtu-genius .
+./xjtu-genius          # 监听 127.0.0.1:18720
+```
 
-## 免责声明 / Disclaimer
+### 2. 启动前端
 
-本工具仅供学习交流使用，请勿用于非法用途或对学校服务器造成攻击。使用本工具产生的任何后果由用户自行承担。
+```bash
+cd frontend
+flutter run -d windows  # 或 linux / macos
+```
 
-## 更新日志 / Changelog
+前端自动连接 `127.0.0.1:18720` 后端。
 
-### 2026-02-01
+## 功能
 
-- **优化驱动管理**:
-  - 修复了驱动下载路径设置不生效的问题，现在强制将驱动下载到程序运行目录，便于管理和携带。
-  - 新增自动清理旧版本驱动的功能。每次启动并成功更新驱动后，会自动删除目录下旧版本的驱动文件夹，节省磁盘空间。
+- **CAS 统一认证登录** — 支持 RSA 加密、验证码、MFA 二次验证、账户选择、Safety Verify
+- **五类课程浏览** — 主修推荐 (TJKC) / 方案内 (FANKC) / 方案外 (FAWKC) / 通识 (XGXK) / 体育 (TYKC)
+- **已选课程查看** — 含课程类型彩色标签
+- **多校区支持** — 9 个校区动态切换
+- **自动抢课引擎** — 并发查容量 + 串行提交 + 100ms 高频轮询 + 自动保活
+- **IME 输入法自动切换** — 输入框获得焦点自动英文，离开恢复中文
+- **配置持久化** — 待抢课程 + 冲突课程保存到 JSON
+
+## 详细文档
+
+- [后端 README](backend/README.md) — Go 后端架构、CAS 登录流程、API 文档、编译部署
+- [前端 README](frontend/README.md) — Flutter 前端架构、UI 组件、IME 实现、平台适配
+
+## 技术选型
+
+| 层 | 技术 | 原因 |
+|----|------|------|
+| 前端 | Flutter 3.44+ | 跨平台桌面支持，Material 3 |
+| 后端 | Go + chi + resty | 高性能 HTTP，原生并发 (goroutine) |
+| 认证 | 原生 RSA + net/http Cookie Jar | 精确控制 CAS 重定向链 |
+| 通信 | REST JSON | 前后端解耦，易于调试 |
+
+## 开发
+
+```bash
+# 后端
+cd backend && go build ./...
+
+# 前端
+cd frontend && dart analyze lib/ && flutter test
+```
