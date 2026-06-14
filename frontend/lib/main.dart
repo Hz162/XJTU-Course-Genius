@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'theme/app_theme.dart';
 import 'pages/login_page.dart';
+import 'widgets/window_bar.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +17,12 @@ class CourseGeniusApp extends StatelessWidget {
       title: 'XJTU Course Genius',
       theme: appTheme(),
       debugShowCheckedModeBanner: false,
+      builder: (context, child) => Column(
+        children: [
+          const WindowBar(),
+          Expanded(child: child ?? const SizedBox.shrink()),
+        ],
+      ),
       home: const LoginPage(),
     );
   }

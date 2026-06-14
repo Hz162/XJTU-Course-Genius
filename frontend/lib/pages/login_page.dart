@@ -203,13 +203,9 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: bgColor,
-      body: Column(
-        children: [
-          const WindowBar(),
-          Expanded(
-            child: Focus(
-              onKeyEvent: _handleKey,
-              child: Center(
+      body: Focus(
+        onKeyEvent: _handleKey,
+        child: Center(
           child: _loading
               ? const Column(
                   mainAxisSize: MainAxisSize.min,
@@ -225,11 +221,8 @@ class _LoginPageState extends State<LoginPage> {
                   ],
                 )
               : _buildForm(),
-            ),
-          ),
         ),
-      ],
-    ),
+      ),
     );
   }
 
