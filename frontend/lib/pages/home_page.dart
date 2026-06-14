@@ -554,33 +554,29 @@ class _HomePageState extends State<HomePage> {
                                   style: const TextStyle(
                                       fontSize: 12, color: textSecondary)),
                             ),
-                            if (type.isNotEmpty && _currentView == 'selected') ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: courseAccent.withAlpha(25),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(typeName.isNotEmpty ? typeName : _typeLabel(type),
-                                    style: TextStyle(
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w600,
-                                        color: courseAccent)),
-                              ),
-                            ],
                           ],
                         ),
                       ],
                     ),
                   ),
                   if (_currentView == 'selected') ...[
-                    const Spacer(),
+                    if (type.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: courseAccent.withAlpha(25),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(typeName.isNotEmpty ? typeName : _typeLabel(type),
+                            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: courseAccent)),
+                      ),
                     IconButton(
                       icon: const Icon(Icons.delete_outline_rounded,
                           size: 20, color: dangerColor),
                       tooltip: '退课',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                       onPressed: () => _confirmDropCourse(item),
                     ),
                   ] else if (inWish)
