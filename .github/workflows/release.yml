@@ -224,7 +224,7 @@ jobs:
           merge-multiple: true
 
       - run: |
-          cp artifacts/* ./
+          find artifacts -type f -exec cp {} ./ \;
           ls -la
 
       - uses: softprops/action-gh-release@v2
