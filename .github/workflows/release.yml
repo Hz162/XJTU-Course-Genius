@@ -49,6 +49,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.44.1'
 
       - uses: actions/download-artifact@v4
         with:
@@ -59,12 +60,13 @@ jobs:
         run: cd frontend && flutter build windows --release
 
       - name: Bundle portable zip
-        shell: bash
+        shell: pwsh
         run: |
-          mkdir bundle
-          cp -r frontend/build/windows/x64/runner/Release/* bundle/
-          cp backend/xjtu-genius.exe bundle/
-          cd bundle && zip -r ../XJTU-Course-Genius-windows-x64.zip *
+          $bundle = "bundle"
+          mkdir $bundle
+          Copy-Item "frontend\build\windows\x64\runner\Release\*" $bundle -Recurse
+          Copy-Item "backend\xjtu-genius.exe" $bundle
+          Compress-Archive -Path "$bundle\*" -DestinationPath "XJTU-Course-Genius-windows-x64.zip"
 
       - name: Install Inno Setup
         shell: pwsh
@@ -96,6 +98,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.44.1'
 
       - run: |
           sudo apt-get update -qq
@@ -169,6 +172,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.44.1'
 
       - uses: actions/download-artifact@v4
         with:
