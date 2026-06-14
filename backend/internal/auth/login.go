@@ -75,6 +75,7 @@ func ReloginIfNeeded(client *resty.Client) error {
 					if j.Data.Number != "" {
 						session.SetStudentCode(j.Data.Number)
 					}
+tResetFailCount()
 					session.SaveCookies(client)
 					return nil
 				}
@@ -82,7 +83,16 @@ func ReloginIfNeeded(client *resty.Client) error {
 		}
 	}
 
-	return FullLogin(client, s.Account, s.Password)
+	if err := FullLogin(client, s.Account, s.Password); err != nil {
+		return err
+	}
+	if session.Get().Token != "" {
+		client.SetHeader("Token", session.Get().Token)
+	}
+	ResetFailCount()
+tResetFailCount()
+	session.SaveCookies(client)
+	return nil
 }
 
 // ── full CAS login (state-machine based) ──
@@ -331,6 +341,8 @@ func postCASRaw(httpClient *http.Client, casURL, account, encPwd, execution, mfa
 		session.SetStudentCode(j.Data.Number)
 	}
 
+	ResetFailCount()
+tResetFailCount()
 	session.SaveCookiesFromHTTP(httpClient)
 	return nil
 }
@@ -633,6 +645,8 @@ func doRegister(client *resty.Client) error {
 		session.SetStudentCode(j.Data.Number)
 	}
 
+	ResetFailCount()
+tResetFailCount()
 	session.SaveCookies(client)
 	return nil
 }
@@ -716,6 +730,8 @@ func followAndRegister(client *resty.Client, startURL string) error {
 		session.SetStudentCode(j.Data.Number)
 	}
 
+	ResetFailCount()
+tResetFailCount()
 	session.SaveCookies(client)
 	return nil
 }

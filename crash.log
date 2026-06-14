@@ -1,0 +1,50 @@
+
+==============================
+Time: 2026-06-09 16:21:39.976507
+Traceback (most recent call last):
+  File "C:\ProgramData\anaconda3\envs\xjtu\Lib\runpy.py", line 198, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\anaconda3\envs\xjtu\Lib\runpy.py", line 88, in _run_code
+    exec(code, run_globals)
+  File "c:\Users\16212\.vscode\extensions\ms-python.debugpy-2026.6.0-win32-x64\bundled\libs\debugpy\launcher/../..\debugpy\__main__.py", line 71, in <module>
+    cli.main()
+  File "c:\Users\16212\.vscode\extensions\ms-python.debugpy-2026.6.0-win32-x64\bundled\libs\debugpy\launcher/../..\debugpy/..\debugpy\server\cli.py", line 542, in main
+    run()
+  File "c:\Users\16212\.vscode\extensions\ms-python.debugpy-2026.6.0-win32-x64\bundled\libs\debugpy\launcher/../..\debugpy/..\debugpy\server\cli.py", line 361, in run_file
+    runpy.run_path(target, run_name="__main__")
+  File "c:\Users\16212\.vscode\extensions\ms-python.debugpy-2026.6.0-win32-x64\bundled\libs\debugpy\_vendored\pydevd\_pydevd_bundle\pydevd_runpy.py", line 310, in run_path
+    return _run_module_code(code, init_globals, run_name, pkg_name=pkg_name, script_name=fname)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\16212\.vscode\extensions\ms-python.debugpy-2026.6.0-win32-x64\bundled\libs\debugpy\_vendored\pydevd\_pydevd_bundle\pydevd_runpy.py", line 127, in _run_module_code
+    _run_code(code, mod_globals, init_globals, mod_name, mod_spec, pkg_name, script_name)
+  File "c:\Users\16212\.vscode\extensions\ms-python.debugpy-2026.6.0-win32-x64\bundled\libs\debugpy\_vendored\pydevd\_pydevd_bundle\pydevd_runpy.py", line 118, in _run_code
+    exec(code, run_globals)
+  File "D:\XJTU-Course-Genius\login.py", line 101, in <module>
+    ).install()
+      ^^^^^^^^^
+  File "C:\ProgramData\anaconda3\envs\xjtu\Lib\site-packages\webdriver_manager\microsoft.py", line 73, in install
+    driver_path = self._get_driver_binary_path(self.driver)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\anaconda3\envs\xjtu\Lib\site-packages\webdriver_manager\core\manager.py", line 35, in _get_driver_binary_path
+    binary_path = self._cache_manager.find_driver(driver)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\anaconda3\envs\xjtu\Lib\site-packages\webdriver_manager\core\driver_cache.py", line 110, in find_driver
+    key = self.__get_metadata_key(driver)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\anaconda3\envs\xjtu\Lib\site-packages\webdriver_manager\core\driver_cache.py", line 145, in __get_metadata_key
+    browser_version = driver.get_browser_version_from_os()
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\anaconda3\envs\xjtu\Lib\site-packages\webdriver_manager\core\driver.py", line 63, in get_browser_version_from_os
+    self._browser_version = self._os_system_manager.get_browser_version_from_os(self.get_browser_type())
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\anaconda3\envs\xjtu\Lib\site-packages\webdriver_manager\core\os_manager.py", line 159, in get_browser_version_from_os
+    version = read_version_from_cmd(cmd_mapping, pattern)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\anaconda3\envs\xjtu\Lib\site-packages\webdriver_manager\core\utils.py", line 46, in read_version_from_cmd
+    stdout = stream.communicate()[0].decode()
+             ^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\anaconda3\envs\xjtu\Lib\subprocess.py", line 1196, in communicate
+    stdout = self.stdout.read()
+             ^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

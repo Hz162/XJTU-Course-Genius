@@ -649,20 +649,25 @@ class MFAHandler:
     def send_code(self):
         url = f"{self.attestServerUrl}/api/guard/{self.mfa_type}/send"
         postdata = {"gid": self.gid}
-        r = self.session.post(url, json=postdata).json()
         try:
             r = self.session.post(url, json=postdata)
             j = r.json()
         except Exception:
             j = {"code": -1, "msg": "network error"}
-        return j  # 返回完整响应，供上层判断
+        return j
 
     def validate_code(self, code):
         url = f"{self.attestServerUrl}/api/guard/{self.mfa_type}/valid"
         postdata = {"gid": self.gid, "code": code}
-        r = self.session.post(url, json=postdata).json()
-        if r and r.get("code") == 0:
-            return r["data"].get("status") == 2
+        try:
+            r = self.session.post(url, json=postdata)
+            j = r.json()
+            print(f"[MFA valid响应] {j}")
+        except Exception as e:
+            print(f"[MFA valid异常] {e}")
+            return False
+        if j and j.get("code") == 0:
+            return j["data"].get("status") == 2
         return False
 
 
@@ -1095,6 +1100,63 @@ def encrypt_jsencrypt(plaintext: str) -> str:
     return "__RSA__" + base64.b64encode(ct).decode()
 
 
+def _follow_and_register(resp):
+    global number, token, headers, session, account
+    # 跟踪重定向链，建立session cookie
+    for i in range(10):
+        loc = resp.headers.get("Location", "")
+        if resp.status_code != 302:
+            break
+        if "employeeNo=" in loc:
+            number = loc.split("employeeNo=")[1].split("&")[0]
+            session.get(loc, headers=headers, allow_redirects=True)
+            break
+        resp = session.get(loc, headers=headers, allow_redirects=False)
+    else:
+        raise Exception("重定向链过长")
+    # 旧流程：重定向链中拿到了employeeNo
+    if number:
+        url = f"https://xkfw.xjtu.edu.cn/xsxkapp/sys/xsxkapp/student/register.do?number={number}"
+        r = session.get(url=url, headers=headers)
+        j = r.json()
+        if str(j.get("code")) in ("0", "1") and j.get("data", {}).get("token"):
+            token = j["data"]["token"]
+            headers['Token'] = token
+            if j["data"].get("number"):
+                number = j["data"]["number"]
+            return
+    # 新流程：register.do?number=null 返回 token 和 number
+    url = "https://xkfw.xjtu.edu.cn/xsxkapp/sys/xsxkapp/student/register.do?number=null"
+    r = session.get(url=url, headers=headers)
+    j = r.json()
+    if str(j.get("code")) in ("0", "1") and j.get("data", {}).get("token"):
+        token = j["data"]["token"]
+        headers['Token'] = token
+        if j["data"].get("number"):
+            number = j["data"]["number"]
+        return
+    # 兜底：尝试不带number参数或用account
+    for candidate in [account, None]:
+        if candidate:
+            url = f"https://xkfw.xjtu.edu.cn/xsxkapp/sys/xsxkapp/student/register.do?number={candidate}"
+        else:
+            url = "https://xkfw.xjtu.edu.cn/xsxkapp/sys/xsxkapp/student/register.do"
+        try:
+            r = session.get(url=url, headers=headers)
+            j = r.json()
+            if str(j.get("code")) in ("0", "1") and j.get("data", {}).get("token"):
+                token = j["data"]["token"]
+                headers['Token'] = token
+                if j["data"].get("number"):
+                    number = j["data"]["number"]
+                elif candidate:
+                    number = candidate
+                return
+        except Exception:
+            continue
+    raise Exception("无法获取学号或注册失败")
+
+
 def login():
     global service, options, browser, number, headers,current_url,token, session
     global account, pwd, FP_VISITOR_ID, fpVisitorId
@@ -1164,7 +1226,16 @@ def login():
         except Exception:
             pass
         trustAgent = "true"
-    
+        # MFA验证后CAS已标记认证完成，逐步跟踪重定向链并注册
+        resp_mfa = session.get(url1, headers=headers, allow_redirects=False)
+        try:
+            _follow_and_register(resp_mfa)
+            return "登录成功"
+        except Exception:
+            pass
+        return "登录失败：MFA验证成功但无法完成登录"
+
+    # 非MFA路径：提交CAS登录表单
     mfa_state = mfa_state or ""
     data = {
         "username" : str(account),
@@ -1181,29 +1252,15 @@ def login():
         "submit1" : "Login1"
     }
     resp3 = session.post(url3, headers=headers, data=data, allow_redirects=False)
-    # 401 return "登录失败"
+    if resp3.status_code == 401:
+        return "登录失败：服务器返回401"
+    if resp3.status_code != 302:
+        return f"登录失败：CAS返回状态码{resp3.status_code}，预期302重定向"
     try:
-        url4 = resp3.headers["Location"]
-        resp4 = session.get(url4, headers=headers, allow_redirects=False)
-        url4 = resp4.headers["Location"]
-        resp4 = session.get(url4, headers=headers, allow_redirects=False)
-        url4 = resp4.headers["Location"]
-        resp4 = session.get(url4, headers=headers, allow_redirects=False)
-        url4 = resp4.headers["Location"]
-        number = url4.split("employeeNo=")[1].split("&")[0]
-        session.get(url4, headers=headers, allow_redirects=True)
-    
-    
-        url="https://xkfw.xjtu.edu.cn/xsxkapp/sys/xsxkapp/student/register.do?number="+str(number)
-        resp=session.get(url=url,headers=headers)
-        token=resp.json()['data']['token']
-        headers['Token']=token
-    
-        return resp.json()["msg"]
-    except Exception:
-        return "登录失败"
-
-    
+        _follow_and_register(resp3)
+        return "登录成功"
+    except Exception as e:
+        return f"登录失败：{type(e).__name__}: {e}"
 def qdlc():
     global xklcdm, list
     i=list[form1.comboBox.currentIndex()]
