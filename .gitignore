@@ -48,3 +48,4 @@ Desktop.ini
 .wdm/backend/cas_test.go
 backend/*.log
 backend/test_captcha.jpg
+backend/config.json
