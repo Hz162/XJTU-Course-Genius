@@ -14,14 +14,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        goos: [windows, linux, darwin]
         include:
           - goos: windows
             ext: .exe
+            target: windows
           - goos: linux
             ext: ''
+            target: linux
           - goos: darwin
             ext: ''
+            target: macos
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -34,7 +36,7 @@ jobs:
             go build -ldflags "-s -w" -o xjtu-genius${{ matrix.ext }} .
       - uses: actions/upload-artifact@v4
         with:
-          name: backend-${{ matrix.goos }}
+          name: backend-${{ matrix.target }}
           path: backend/xjtu-genius${{ matrix.ext }}
 
   # ── Flutter per-platform + packaging ──
