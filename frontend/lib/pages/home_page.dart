@@ -49,12 +49,35 @@ class _HomePageState extends State<HomePage> {
     _loadCampus();
     _loadCourseData('selected');
     _loadVolunteerSlots();
+    _startSessionMonitor();
+  }
+
+  Timer? _sessionTimer;
+  bool _sessionDead = false;
+
+  void _startSessionMonitor() {
+    _sessionTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      try {
+        final alive = await api.checkSession();
+        if (!alive && mounted && !_sessionDead) {
+          setState(() => _sessionDead = true);
+          final ok = await api.relogin().then((_) => true).catchError((_) => false);
+          if (ok) {
+            setState(() => _sessionDead = false);
+            _loadCourseData(_currentView);
+          } else {
+            if (mounted) redirectToLogin();
+          }
+        }
+      } catch (_) {}
+    });
   }
 
   @override
   void dispose() {
     _keywordCtl.dispose();
     _statusTimer?.cancel();
+    _sessionTimer?.cancel();
     super.dispose();
   }
 
@@ -121,6 +144,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _addToWishList(Map<String, dynamic> item) async {
     // Pick volunteer slot if available
     String? cv;
+    bool dialogShown = false;
     if (_volunteerSlots.isNotEmpty) {
       try {
         // Ask server which slots this specific course can use (原网页逻辑)
@@ -130,6 +154,7 @@ class _HomePageState extends State<HomePage> {
         if (!mounted) return;
         final available = _volunteerSlots.where((s) => allowedSlots.contains(s['grade'])).toList();
 
+      dialogShown = true;
       cv = await showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -176,8 +201,8 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    // User dismissed volunteer dialog without picking → don't add
-    if (_volunteerSlots.isNotEmpty && cv == null) return;
+    // Dialog was shown but user dismissed → don't add
+    if (dialogShown && cv == null) return;
 
     final entry = [
       (item['teachingClassId'] ?? '').toString(),

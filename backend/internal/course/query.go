@@ -446,17 +446,15 @@ func QueryCourseVolunteerSlots(client *resty.Client, teachingClassID, classType,
 	}
 	stdlog.Printf("[vol] QueryCourseVolunteerSlots %s: body=%s", teachingClassID, safeSlice(string(resp.Body()), 300))
 	var j struct {
-		Data struct {
-			ChooseVolunteerList []struct {
-				Grade string `json:"grade"`
-				Name  string `json:"name"`
-			} `json:"chooseVolunteerList"`
-		} `json:"data"`
+		DataList []struct {
+			Grade json.Number `json:"grade"`
+			Name  string      `json:"name"`
+		} `json:"dataList"`
 	}
 	if json.Unmarshal(resp.Body(), &j) == nil {
 		var slots []string
-		for _, v := range j.Data.ChooseVolunteerList {
-			slots = append(slots, v.Grade)
+		for _, v := range j.DataList {
+			slots = append(slots, v.Grade.String())
 		}
 		return slots, nil
 	}
