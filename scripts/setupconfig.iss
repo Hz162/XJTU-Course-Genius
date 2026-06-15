@@ -62,3 +62,24 @@ Type: filesandordirs; Name: "{app}"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// Kill running app + backend before uninstall
+function InitializeUninstall(): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Exec('taskkill', '/f /im xjtu_course_genius.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('taskkill', '/f /im xjtu-genius.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := True;
+end;
+
+// Also close app before upgrade install
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Exec('taskkill', '/f /im xjtu_course_genius.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('taskkill', '/f /im xjtu-genius.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := '';
+end;

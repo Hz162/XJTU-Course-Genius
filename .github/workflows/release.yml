@@ -148,6 +148,15 @@ jobs:
           cp assets/logo.png pkg/usr/share/icons/hicolor/256x256/apps/xjtu-course-genius.png
 
           # Control file
+          # Pre-remove: kill running processes
+          cat > pkg/DEBIAN/prerm << 'PRERM'
+          #!/bin/sh
+          pkill -f xjtu_course_genius 2>/dev/null || true
+          pkill -f xjtu-genius 2>/dev/null || true
+          exit 0
+          PRERM
+          chmod +x pkg/DEBIAN/prerm
+
           cat > pkg/DEBIAN/control << EOF
           Package: xjtu-course-genius
           Version: ${VER:-4.0}

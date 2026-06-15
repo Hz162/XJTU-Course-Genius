@@ -84,8 +84,11 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadCampus() async {
     try {
       final list = await api.getCampusList();
+      if (mounted) setState(() => _campusList = list);
+    } catch (_) {}
+    try {
       final slots = await api.getVolunteerSlots();
-      if (mounted) setState(() { _campusList = list; _volunteerSlots = slots; });
+      if (mounted) setState(() => _volunteerSlots = slots);
     } catch (_) {}
   }
 

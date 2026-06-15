@@ -30,6 +30,12 @@ class MainFlutterWindow: NSWindow {
         self.contentViewController = flutterViewController
         self.setFrame(windowFrame, display: true)
 
+        // Kill any orphaned backend from previous runs
+        let killTask = Process()
+        killTask.launchPath = "/usr/bin/pkill"
+        killTask.arguments = ["-f", "xjtu-genius"]
+        killTask.launch()
+
         // Frameless style: transparent titlebar, content extends to top
         self.titlebarAppearsTransparent = true
         self.titleVisibility = .hidden

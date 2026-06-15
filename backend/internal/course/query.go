@@ -401,7 +401,7 @@ func GetVolunteerSlots(client *resty.Client) []map[string]string {
 	url := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/publicinfo/volunteer.do", baseURL)
 	resp, err := client.R().SetHeader("Token", session.Get().Token).Get(url)
 	if err != nil {
-		return nil
+		return []map[string]string{}
 	}
 	var j struct {
 		DataList []struct {
