@@ -32,7 +32,7 @@ class BackendService {
     var dir = flutterDir;
     for (var i = 0; i < 8; i++) {
       final candidate =
-          File('${dir.path}${Platform.pathSeparator}backend$_exeName');
+          File('${dir.path}${Platform.pathSeparator}backend${Platform.pathSeparator}$_exeName');
       if (candidate.existsSync()) return candidate.path;
       dir = dir.parent;
     }

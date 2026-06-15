@@ -56,6 +56,9 @@ jobs:
           name: backend-windows
           path: backend/
 
+      - name: Generate icon from logo
+        run: convert assets/logo.png -resize 256x256 frontend/windows/runner/resources/app_icon.ico
+
       - name: Build Flutter
         run: cd frontend && flutter build windows --release
 
@@ -109,7 +112,7 @@ jobs:
 
       - run: |
           sudo apt-get update -qq
-          sudo apt-get install -y cmake pkg-config libgtk-3-dev liblzma-dev
+          sudo apt-get install -y cmake pkg-config libgtk-3-dev
 
       - uses: actions/download-artifact@v4
         with:
@@ -117,6 +120,14 @@ jobs:
           path: backend/
 
       - run: chmod +x backend/xjtu-genius
+
+      - name: Generate icons from logo
+        run: |
+          for size in 48 64 128 256; do
+            mkdir -p "assets/linux_icons/${{size}}x${{size}}/apps"
+            convert assets/logo.png -resize "${{size}}x${{size}}" \
+              "assets/linux_icons/${{size}}x${{size}}/apps/xjtu-course-genius.png"
+          done
 
       - name: Build Flutter
         run: cd frontend && flutter build linux --release
@@ -133,7 +144,7 @@ jobs:
           chmod +x "$INSTALL_DIR/xjtu_course_genius" "$INSTALL_DIR/xjtu-genius"
 
           # Desktop entry
-          mkdir -p pkg/usr/share/applications pkg/usr/share/icons/hicolor/256x256/apps
+          mkdir -p pkg/usr/share/applications
           cat > pkg/usr/share/applications/xjtu-course-genius.desktop << 'EOF'
           [Desktop Entry]
           Type=Application
@@ -145,17 +156,35 @@ jobs:
           Categories=Education;
           Terminal=false
           EOF
-          cp assets/logo.png pkg/usr/share/icons/hicolor/256x256/apps/xjtu-course-genius.png
+          # Install icons at all standard sizes (hicolor theme)
+          for size in 48 64 128 256; do
+            mkdir -p "pkg/usr/share/icons/hicolor/${{size}}x${{size}}/apps"
+            cp "assets/linux_icons/${{size}}x${{size}}/apps/xjtu-course-genius.png" \
+               "pkg/usr/share/icons/hicolor/${{size}}x${{size}}/apps/xjtu-course-genius.png"
+          done
 
           # Control file
-          # Pre-remove: kill running processes
+          # Pre-remove: kill running processes by exact path
           cat > pkg/DEBIAN/prerm << 'PRERM'
           #!/bin/sh
-          pkill -f xjtu_course_genius 2>/dev/null || true
-          pkill -f xjtu-genius 2>/dev/null || true
+          pkill -x -f "/opt/xjtu-course-genius/xjtu_course_genius" 2>/dev/null || true
+          pkill -x -f "/opt/xjtu-course-genius/xjtu-genius" 2>/dev/null || true
           exit 0
           PRERM
           chmod +x pkg/DEBIAN/prerm
+
+          # Post-install: update desktop database and icon cache
+          cat > pkg/DEBIAN/postinst << 'POSTINST'
+          #!/bin/sh
+          if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database 2>/dev/null || true
+          fi
+          if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache /usr/share/icons/hicolor/ 2>/dev/null || true
+          fi
+          exit 0
+          POSTINST
+          chmod +x pkg/DEBIAN/postinst
 
           cat > pkg/DEBIAN/control << EOF
           Package: xjtu-course-genius
@@ -196,6 +225,17 @@ jobs:
           path: backend/
 
       - run: chmod +x backend/xjtu-genius
+
+      - name: Generate icons from logo
+        run: |
+          # Generate macOS AppIcon PNGs from assets/logo.png
+          convert assets/logo.png -resize 16x16   frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_16.png
+          convert assets/logo.png -resize 32x32   frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_32.png
+          convert assets/logo.png -resize 64x64   frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_64.png
+          convert assets/logo.png -resize 128x128 frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_128.png
+          convert assets/logo.png -resize 256x256 frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_256.png
+          convert assets/logo.png -resize 512x512 frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_512.png
+          convert assets/logo.png -resize 1024x1024 frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png
 
       - name: Build Flutter
         run: cd frontend && flutter build macos --release

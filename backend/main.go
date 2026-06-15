@@ -15,8 +15,10 @@ import (
 )
 
 func setupLogging() *os.File {
-	exe, _ := os.Executable()
-	dir := filepath.Dir(exe)
+	// Write log to config directory, not the executable directory
+	// (on macOS, the .app bundle is read-only under sandbox)
+	dir := configDir()
+	os.MkdirAll(dir, 0755)
 	path := filepath.Join(dir, "xjtu-genius.log")
 
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
