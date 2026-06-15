@@ -209,7 +209,7 @@ jobs:
           name: XJTU-Course-Genius-macos
           path: XJTU-Course-Genius-macos.dmg
 
-  # ── GitHub Release (on tag) ──
+  # ── GitHub Release (on tag push) ──
   release:
     needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
@@ -223,16 +223,19 @@ jobs:
           path: artifacts/
           merge-multiple: true
 
-      - run: |
-          find artifacts -type f -exec cp {} ./ \;
-          ls -la
+      - name: Flatten artifacts
+        run: |
+          find artifacts -type f -exec mv {} ./ \;
+          rm -rf artifacts
+          ls -lh
 
-      - uses: softprops/action-gh-release@v2
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             XJTU-Course-Genius-windows-x64.zip
-            XJTU-Course-Genius-Setup-v*.exe
+            **/XJTU-Course-Genius-Setup-v*.exe
             XJTU-Course-Genius-linux-x64.deb
-            XJTU-Course-Genius-linux-x64.tar.gz
             XJTU-Course-Genius-macos.dmg
+          fail_on_unmatched_files: false
           generate_release_notes: true
