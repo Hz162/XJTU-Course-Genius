@@ -5,8 +5,10 @@ type CourseInfo struct {
 	CourseName      string `json:"courseName"`
 	TeacherName     string `json:"teacherName"`
 	TeachingPlace   string `json:"teachingPlace"`
+	ClassTime       string `json:"classTime,omitempty"`
 	ClassType       string `json:"classType"`
 	CourseTypeName  string `json:"courseTypeName,omitempty"`
+	CourseTypeCode  string `json:"courseTypeCode,omitempty"`
 	Campus          string `json:"campus"`
 }
 

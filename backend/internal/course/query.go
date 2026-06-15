@@ -291,40 +291,83 @@ func fetchAllPagesForCampus(client *resty.Client, endpoint, classType, keyword s
 	return all, len(all), nil
 }
 
+// splitTimePlace splits combined "time+place" strings like
+// "1-2周 星期一 1-4节 主楼D-206,1-2周 星期二 1-4节 主楼D-206"
+func splitTimePlace(s string) (time, place string) {
+	if s == "" { return "", "" }
+	var times, places []string
+	seenT, seenP := map[string]bool{}, map[string]bool{}
+	for _, seg := range strings.Split(s, ",") {
+		seg = strings.TrimSpace(seg)
+		if seg == "" { continue }
+		idx := strings.Index(seg, "节 ")
+		if idx > 0 {
+			t := strings.TrimSpace(seg[:idx+len("节")])
+			p := strings.TrimSpace(seg[idx+len("节 "):])
+			if t != "" && !seenT[t] { seenT[t] = true; times = append(times, t) }
+			if p != "" && !seenP[p] { seenP[p] = true; places = append(places, p) }
+		} else {
+			if !seenP[seg] { seenP[seg] = true; places = append(places, seg) }
+		}
+	}
+	return strings.Join(times, "; "), strings.Join(places, ", ")
+}
+
 func parseDataList(raw json.RawMessage, classType string, hasTCLists, isXGXK bool) []CourseInfo {
 	var results []CourseInfo
 	if isXGXK {
 		var list []struct {
+			TeachingClassID  string `json:"teachingClassID"`
 			CourseName       string `json:"courseName"`
+			TeacherName      string `json:"teacherName"`
 			Campus           string `json:"campus"`
+			CourseType            string `json:"courseType"`
+			CourseTypeName        string `json:"courseTypeName"`
+			PublicCourseType      string `json:"publicCourseType"`
+			PublicCourseTypeName  string `json:"publicCourseTypeName"`
+			TeachingPlace    string `json:"teachingPlace"`
 			TeachingTimeList []struct {
-				TeachingClassID string `json:"teachingClassID"`
-				TeacherName     string `json:"teacherName"`
-				TeachingPlace   string `json:"teachingPlace"`
-				CourseName      string `json:"courseName"`
+				WeekName       string `json:"weekName"`
+				DayOfWeek      string `json:"dayOfWeek"`
+				BeginSection   string `json:"beginSection"`
+				EndSection     string `json:"endSection"`
+				TeachingPlace  string `json:"teachingPlace"`
 			} `json:"teachingTimeList"`
 		}
 		json.Unmarshal(raw, &list)
+		dayNames := map[string]string{"1": "一", "2": "二", "3": "三", "4": "四", "5": "五", "6": "六", "7": "日"}
 		for _, item := range list {
-			for _, tc := range item.TeachingTimeList {
-				name := item.CourseName
-				if name == "" {
-					name = tc.CourseName
-				}
-				results = append(results, CourseInfo{
-					TeachingClassID: tc.TeachingClassID,
-					CourseName:      name,
-					TeacherName:     tc.TeacherName,
-					TeachingPlace:   tc.TeachingPlace,
-					ClassType:       classType,
-					CourseTypeName:  classType,
-					Campus:          item.Campus,
-				})
+			var timeParts []string
+			seen := map[string]bool{}
+			locPlace := ""
+			for _, ttl := range item.TeachingTimeList {
+				if locPlace == "" && ttl.TeachingPlace != "" { locPlace = ttl.TeachingPlace }
+				day := dayNames[ttl.DayOfWeek]
+				if day == "" { day = ttl.DayOfWeek }
+				part := fmt.Sprintf("%s 星期%s %s-%s节", ttl.WeekName, day, ttl.BeginSection, ttl.EndSection)
+				if !seen[part] { seen[part] = true; timeParts = append(timeParts, part) }
 			}
+			typeName := item.PublicCourseTypeName
+			if typeName == "" { typeName = item.CourseTypeName }
+			if typeName == "" { typeName = classType }
+			typeCode := item.PublicCourseType
+			if typeCode == "" { typeCode = item.CourseType }
+			results = append(results, CourseInfo{
+				TeachingClassID: item.TeachingClassID,
+				CourseName:      item.CourseName,
+				TeacherName:     item.TeacherName,
+				TeachingPlace:   locPlace,
+				ClassTime:       strings.Join(timeParts, "; "),
+				ClassType:       classType,
+				CourseTypeName:  typeName,
+				Campus:          item.Campus,
+			})
 		}
 	} else if hasTCLists {
 		var list []struct {
 			CourseName string `json:"courseName"`
+			TypeName   string `json:"typeName"`
+				Type       string `json:"type"`
 			TcList     []struct {
 				TeachingClassID string `json:"teachingClassID"`
 				TeacherName     string `json:"teacherName"`
@@ -335,18 +378,23 @@ func parseDataList(raw json.RawMessage, classType string, hasTCLists, isXGXK boo
 		}
 		json.Unmarshal(raw, &list)
 		for _, a := range list {
+			typeName := a.TypeName
+			if typeName == "" { typeName = classType }
 			for _, tc := range a.TcList {
 				name := a.CourseName
 				if classType == "TYKC" && tc.SportName != "" {
 					name = name + "-" + tc.SportName
 				}
+				ctime, cplace := splitTimePlace(tc.TeachingPlace)
 				results = append(results, CourseInfo{
 					TeachingClassID: tc.TeachingClassID,
 					CourseName:      name,
 					TeacherName:     tc.TeacherName,
-					TeachingPlace:   tc.TeachingPlace,
+					TeachingPlace:   cplace,
+					ClassTime:       ctime,
 					ClassType:       classType,
-					CourseTypeName:  classType,
+					CourseTypeName:  typeName,
+					CourseTypeCode:  a.Type,
 					Campus:          tc.Campus,
 				})
 			}

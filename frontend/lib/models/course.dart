@@ -3,7 +3,9 @@ class CourseInfo {
   final String courseName;
   final String teacherName;
   final String teachingPlace;
+  final String classTime;
   final String classType;
+  final String courseTypeCode;
   String campus;
 
   CourseInfo({
@@ -11,6 +13,8 @@ class CourseInfo {
     required this.courseName,
     required this.teacherName,
     required this.teachingPlace,
+    this.classTime = '',
+    this.courseTypeCode = '',
     required this.classType,
     this.campus = '',
   });
@@ -20,6 +24,8 @@ class CourseInfo {
         courseName: json['courseName'] ?? '',
         teacherName: json['teacherName'] ?? '',
         teachingPlace: json['teachingPlace'] ?? '',
+        classTime: json['classTime'] ?? '',
+        courseTypeCode: json['courseTypeCode'] ?? '',
         classType: json['classType'] ?? '',
         campus: json['campus'] ?? '',
       );
@@ -29,6 +35,7 @@ class CourseInfo {
         'courseName': courseName,
         'teacherName': teacherName,
         'teachingPlace': teachingPlace,
+        'classTime': classTime,
         'classType': classType,
         'campus': campus,
       };

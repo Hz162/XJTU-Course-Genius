@@ -83,6 +83,28 @@ Color accentForType(String type) {
   return _accentPalette[hash % _accentPalette.length];
 }
 
+/// Returns a color that harmonizes with [base] (sidebar tab color).
+/// Known types get fixed colors; unknown codes get analogous hue shifts.
+Color accentForTypeWithBase(String type, Color base) {
+  if (type.isEmpty) return base;
+  switch (type) {
+    case 'TJKC': return primaryColor;
+    case 'FANKC': return successColor;
+    case 'FAWKC': return warningColor;
+    case 'XGXK': return accentPurple;
+    case 'TYKC': return accentTeal;
+  }
+  // Analogous hue shift (±12°) based on type code hash
+  int hash = 0;
+  for (int i = 0; i < type.length; i++) {
+    hash = (hash * 31 + type.codeUnitAt(i)) & 0x7fffffff;
+  }
+  final hsl = HSLColor.fromColor(base);
+  final shift = (hash % 25 - 12).toDouble(); // ±12° hue shift
+  final newHue = (hsl.hue + shift) % 360;
+  return hsl.withHue(newHue).toColor();
+}
+
 ThemeData appTheme() => ThemeData(
       useMaterial3: true,
       colorSchemeSeed: primaryColor,

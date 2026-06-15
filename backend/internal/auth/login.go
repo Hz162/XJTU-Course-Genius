@@ -31,18 +31,28 @@ func ResetFailCount() {
 }
 func IsCaptchaRequired() bool  { return failCount >= 3 }
 
-// isCaptchaPage checks if CAS returned the login page with captcha required.
-// CAS shows captcha when failN reaches the server threshold (typically 3).
+// isCaptchaPage checks if CAS returned the login page with captcha ACTIVELY required.
+// CAS always includes captcha.jpg in the login page HTML (hidden via display:none when not needed).
+// We check for visible captcha indicators.
 func isCaptchaPage(body []byte) bool {
 	s := string(body)
-	// Must be the CAS login page (not a redirect or other page)
 	if !strings.Contains(s, "fm1") || !strings.Contains(s, "execution") {
 		return false
 	}
-	// Check for captcha indicators in the page
-	return strings.Contains(s, "captcha.jpg") ||
-		strings.Contains(s, "id=\"captcha\"") ||
-		strings.Contains(s, "输入验证码")
+	// captcha.jpg is always present; check if it's in a visible (non-hidden) section
+	idx := strings.Index(s, "captcha.jpg")
+	if idx < 0 {
+		return false
+	}
+	// If display:none is near captcha.jpg, the captcha div is hidden → not required
+	start := idx - 400
+	if start < 0 {
+		start = 0
+	}
+	if strings.Contains(s[start:idx], "display:none") {
+		return false
+	}
+	return true
 }
 
 // ── session alive check ──
@@ -149,9 +159,18 @@ func FullLoginWithCaptcha(client *resty.Client, account, password, captcha strin
 		stdlog.Println("[captcha] retry: reusing stored execution (was never consumed)")
 		casURL = captchaCASURL
 		execution = captchaExecution
-		mfaState = captchaMFAState
 		fpID = captchaFpID
 		encPwd, _ = EncryptPassword(password)
+
+		// Re-detect MFA — the CAS session has a new execution, need fresh mfaState
+		if mfaNeed, mfaState2, err := detectMFA(client, account, encPwd, fpID); err == nil {
+			mfaState = mfaState2
+			if mfaNeed {
+				currentMFA = &MFAInfo{State: mfaState, Flow: MFAFlowMFA}
+				ClearSafetyVerify()
+				return &MFANeededError{State: mfaState, Reason: "需要MFA验证", IsMFA: true}
+			}
+		}
 	} else {
 		fpID, _ = GetFingerprint()
 		session.SetFpVisitorID(fpID)
@@ -191,6 +210,12 @@ func FullLoginWithCaptcha(client *resty.Client, account, password, captcha strin
 		captchaExecution = execution
 		captchaMFAState = mfaState
 		captchaFpID = fpID
+	}
+
+	// Pre-check: if captcha is likely needed but not provided, skip the POST (matches XJTUToolBox)
+	if failCount >= 3 && captcha == "" {
+		stdlog.Printf("[captcha] pre-check: failCount=%d, returning captcha_required (no POST)", failCount)
+		return &CaptchaNeededError{}
 	}
 
 
@@ -304,27 +329,44 @@ func postCASRaw(httpClient *http.Client, casURL, account, encPwd, execution, mfa
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 
-	// CAS returned captcha page
-	if isCaptchaPage(body) {
-		failCount++
-		// Extract new execution from captcha page for retry
+	// Determine if this is a CAS login page (has execution & fm1 form)
+	isCASPage := strings.Contains(string(body), "fm1") && strings.Contains(string(body), "execution")
+	alertMsg := extractAlertMessage(body)
+
+	// Update execution whenever we see a CAS page (for potential retry)
+	if isCASPage {
 		newExec := extractExecution(body)
 		if newExec != "" {
 			captchaExecution = newExec
 			captchaCASURL = resp.Request.URL.String()
-			stdlog.Printf("[captcha] updated execution from captcha page: %s", newExec[:40])
 		}
-		if captcha != "" {
-			// We sent a captcha but CAS still shows captcha page → wrong code
-			return &CaptchaNeededError{Message: "验证码错误，请重试"}
-		}
-		return &CaptchaNeededError{}
 	}
 
-	// Check for alert error
-	if msg := extractAlertMessage(body); msg != "" {
+	// Decision logic:
+	// - CAS page + captcha probably needed → CaptchaNeededError
+	// - CAS page + alert but captcha not needed yet → plain error
+	// - No alert, not CAS page → success (redirect to xkfw)
+	captchaLikely := failCount >= 3 || captcha != "" || alertMsg == ""
+
+	if isCASPage && captchaLikely {
 		failCount++
-		return fmt.Errorf("登录失败: %s", msg)
+		stdlog.Printf("[captcha] captcha required, alert=%q, failCount=%d", alertMsg, failCount)
+		reason := ""
+		if captcha != "" {
+			reason = "验证码错误，请重试"
+			if alertMsg != "" {
+				reason = alertMsg; if strings.Contains(alertMsg, "reCAPTCHA") { reason = "验证码错误，请重试" }
+			}
+		} else if alertMsg != "" {
+			reason = alertMsg; if strings.Contains(alertMsg, "reCAPTCHA") { reason = "验证码错误，请重试" }
+		}
+		return &CaptchaNeededError{Message: reason}
+	}
+
+	// Plain error: alert on CAS page but captcha threshold not reached yet
+	if alertMsg != "" {
+		failCount++
+		return fmt.Errorf("登录失败: %s", alertMsg)
 	}
 
 	// Check for Safety Verify page

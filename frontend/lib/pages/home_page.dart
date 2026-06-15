@@ -650,9 +650,13 @@ class _HomePageState extends State<HomePage> {
         final name = (item['courseName'] ?? '').toString();
         final teacher = (item['teacherName'] ?? '').toString();
         final place = (item['teachingPlace'] ?? '').toString();
+        final time = (item['classTime'] ?? '').toString();
         final type = (item['classType'] ?? '').toString();
+        final typeCode = (item['courseTypeCode'] ?? '').toString();
         final typeName = (item['courseTypeName'] ?? '').toString();
-        final courseAccent = type.isNotEmpty ? accentForType(type) : accent;
+        final tabAccent = accentForType(type);
+        final courseAccent = accentForTypeWithBase(
+            typeCode.isNotEmpty ? typeCode : type, tabAccent);
         final inWish = _wishList.any((e) => e.isNotEmpty && e[0] == id);
 
         return Padding(
@@ -693,26 +697,28 @@ class _HomePageState extends State<HomePage> {
                                 fontWeight: FontWeight.w600,
                                 color: textPrimary)),
                         const SizedBox(height: 3),
-                        Row(
-                          children: [
-                            const Icon(Icons.person_outline_rounded,
-                                size: 13, color: textMuted),
-                            const SizedBox(width: 3),
-                            Text(teacher,
-                                style: const TextStyle(
-                                    fontSize: 12, color: textSecondary)),
+                        Row(children: [
+                          const Icon(Icons.person_outline_rounded, size: 13, color: textMuted),
+                          const SizedBox(width: 3),
+                          Text(teacher, style: const TextStyle(fontSize: 12, color: textSecondary)),
+                          if (place.isNotEmpty) ...[
                             const SizedBox(width: 14),
-                            const Icon(Icons.location_on_outlined,
-                                size: 13, color: textMuted),
+                            const Icon(Icons.location_on_outlined, size: 13, color: textMuted),
                             const SizedBox(width: 3),
-                            Expanded(
-                              child: Text(place,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontSize: 12, color: textSecondary)),
-                            ),
+                            Expanded(child: Text(place, overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12, color: textSecondary))),
                           ],
-                        ),
+                        ]),
+                        if (time.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Row(children: [
+                              const Icon(Icons.access_time_rounded, size: 13, color: textMuted),
+                              const SizedBox(width: 3),
+                              Expanded(child: Text(time, overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12, color: textSecondary))),
+                            ]),
+                          ),
                       ],
                     ),
                   ),
@@ -1425,6 +1431,7 @@ class _HomePageState extends State<HomePage> {
     final name = (item['courseName'] ?? '').toString();
     final teacher = (item['teacherName'] ?? '').toString();
     final place = (item['teachingPlace'] ?? '').toString();
+    final time = (item['classTime'] ?? '').toString();
     final type = (item['classType'] ?? '').toString();
     final typeName = (item['courseTypeName'] ?? '').toString();
     final accent = accentForType(type);
@@ -1481,7 +1488,8 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 24),
               _detailRow('课程班号', id),
               _detailRow('授课教师', teacher),
-              _detailRow('上课地点', place),
+              if (time.isNotEmpty) _detailRow('上课时间', time),
+              if (place.isNotEmpty) _detailRow('上课地点', place),
               _detailRow('课程类别', (typeName.isNotEmpty ? typeName : _typeLabel(type))),
               const SizedBox(height: 20),
               Row(
