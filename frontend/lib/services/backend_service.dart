@@ -104,15 +104,14 @@ class BackendService {
   }
 
   /// Stop the backend process.
-  Future<void> stop() async {
+  void stop() {
     if (_process == null) return;
     try {
-      _process!.kill(ProcessSignal.sigterm);
-      await _process!.exitCode.timeout(const Duration(seconds: 3));
-    } catch (_) {
       _process!.kill(ProcessSignal.sigkill);
+      _process = null;
+      debugPrint('[BackendService] backend stopped');
+    } catch (_) {
+      debugPrint('[BackendService] failed to stop backend');
     }
-    _process = null;
-    debugPrint('[BackendService] backend stopped');
   }
 }

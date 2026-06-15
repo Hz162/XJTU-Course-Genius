@@ -1,3 +1,4 @@
+import 'dart:ui' show AppExitResponse;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'services/backend_service.dart';
@@ -50,6 +51,12 @@ class _CourseGeniusAppState extends State<CourseGeniusApp>
     if (state == AppLifecycleState.detached) {
       BackendService().stop();
     }
+  }
+
+  @override
+  Future<AppExitResponse> didRequestAppExit() async {
+    BackendService().stop();
+    return AppExitResponse.exit;
   }
 
   @override

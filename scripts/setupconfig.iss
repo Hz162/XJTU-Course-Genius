@@ -23,6 +23,7 @@ OutputDir=..\dist
 OutputBaseFilename=XJTU-Course-Genius-Setup-v{#MyAppVersion}
 SolidCompression=yes
 Compression=lzma2/ultra
+SetupIconFile=..\frontend\windows\runner\resources\app_icon.ico
 WizardStyle=modern
 ; Let user choose: all users (admin) or current user only
 PrivilegesRequiredOverridesAllowed=dialog
