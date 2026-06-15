@@ -249,6 +249,14 @@ class ApiService {
   Future<void> setCampus(String campus) =>
       _request('POST', '/campus/set', body: {'campus': campus});
 
+  // ── Volunteer slots ──
+
+  Future<List<Map<String, String>>> getVolunteerSlots() async {
+    final data = await _request('GET', '/volunteer/slots');
+    return (data as List).map<Map<String, String>>((e) =>
+        {'grade': e['grade']?.toString() ?? '', 'name': e['name']?.toString() ?? ''}).toList();
+  }
+
   // ── Session ──
 
   Future<bool> checkSession() async {

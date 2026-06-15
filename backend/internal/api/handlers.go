@@ -364,6 +364,13 @@ func (s *Server) HandleRelogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"status": "ok"})
 }
 
+// ── Volunteer slots ──
+
+func (s *Server) HandleVolunteerSlots(w http.ResponseWriter, r *http.Request) {
+	slots := course.GetVolunteerSlots(s.client)
+	writeJSON(w, 200, slots)
+}
+
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

@@ -228,7 +228,12 @@ func (e *Engine) loop() {
 				classType = courses[j][4]
 			}
 
-			if err := Volunteer(client, courses[j][0], classType, campus); err != nil {
+			// Use explicit volunteer index from config, fallback to slot position
+			cv := fmt.Sprintf("%d", j+1)
+			if len(courses[j]) > 6 && courses[j][6] != "" {
+				cv = courses[j][6]
+			}
+			if err := Volunteer(client, courses[j][0], classType, campus, cv); err != nil {
 				continue
 			}
 

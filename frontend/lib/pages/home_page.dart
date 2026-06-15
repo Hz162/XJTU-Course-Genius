@@ -29,6 +29,7 @@ class _HomePageState extends State<HomePage> {
 
   List<dynamic> _campusList = [];
   String _currentCampus = '';
+  List<Map<String, String>> _volunteerSlots = [];
 
   List<List<String>> _wishList = [];
   List<List<String>> _delCourses = [];
@@ -83,7 +84,8 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadCampus() async {
     try {
       final list = await api.getCampusList();
-      if (mounted) setState(() => _campusList = list);
+      final slots = await api.getVolunteerSlots();
+      if (mounted) setState(() { _campusList = list; _volunteerSlots = slots; });
     } catch (_) {}
   }
 
@@ -110,6 +112,27 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _addToWishList(Map<String, dynamic> item) async {
+    // Pick volunteer slot if available
+    String? cv;
+    if (_volunteerSlots.isNotEmpty) {
+      cv = await showDialog<String>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          title: const Text('选择志愿'),
+          children: [
+            ..._volunteerSlots.map((s) => SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, s['grade']),
+              child: Text(s['name'] ?? s['grade'] ?? '?'),
+            )),
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, ''),
+              child: const Text('不设置', style: TextStyle(color: textMuted)),
+            ),
+          ],
+        ),
+      );
+    }
+
     final entry = [
       (item['teachingClassId'] ?? '').toString(),
       (item['courseName'] ?? '').toString(),
@@ -117,6 +140,7 @@ class _HomePageState extends State<HomePage> {
       (item['teachingPlace'] ?? '').toString(),
       (item['classType'] ?? _currentView).toString(),
       _currentCampus,
+      cv ?? '', // volunteer index
     ];
     if (_wishList.any((e) => e.isNotEmpty && e[0] == entry[0])) {
       _showError('已在抢课列表中');
@@ -1039,6 +1063,7 @@ class _HomePageState extends State<HomePage> {
     final teacher = c.length > 2 ? c[2] : '';
     final place = c.length > 3 ? c[3] : '';
     final type = c.length > 4 ? c[4] : '';
+    final cv = c.length > 6 ? c[6] : '';
     final accent = accentForType(type);
 
     return Container(
@@ -1137,6 +1162,47 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
           const SizedBox(height: 10),
+          // Volunteer slot selector
+          if (_volunteerSlots.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                children: [
+                  const Icon(Icons.flag, size: 14, color: textMuted),
+                  const SizedBox(width: 6),
+                  const Text('志愿: ',
+                      style: TextStyle(fontSize: 12, color: textSecondary)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: surfaceSecondary,
+                      borderRadius: BorderRadius.circular(radiusSm),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: DropdownButton<String>(
+                      value: cv.isEmpty || _volunteerSlots.any((s) => s['grade'] == cv) ? cv : '',
+                      underline: const SizedBox.shrink(),
+                      isDense: true,
+                      style: const TextStyle(fontSize: 12, color: textPrimary),
+                      items: [
+                        const DropdownMenuItem(
+                            value: '',
+                            child: Text('不设置',
+                                style: TextStyle(fontSize: 12, color: textMuted))),
+                        ..._volunteerSlots.map((s) => DropdownMenuItem(
+                            value: s['grade'] ?? '',
+                            child: Text(s['name'] ?? '',
+                                style: const TextStyle(fontSize: 12)))),
+                      ],
+                      onChanged: (v) => setState(() {
+                        while (_wishList[i].length <= 6) { _wishList[i].add(''); }
+                        _wishList[i][6] = v ?? '';
+                      }),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (conflicts.isNotEmpty) ...[
             const Text('冲突课程',
                 style: TextStyle(

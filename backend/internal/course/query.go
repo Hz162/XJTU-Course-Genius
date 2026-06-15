@@ -390,23 +390,57 @@ func CheckCapacity(client *resty.Client, teachingClassID string) (bool, error) {
 	return hasRoom, nil
 }
 
+// ── Volunteer slots ──
+
+var volunteerSlotsCache []map[string]string
+
+func GetVolunteerSlots(client *resty.Client) []map[string]string {
+	if volunteerSlotsCache != nil {
+		return volunteerSlotsCache
+	}
+	url := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/publicinfo/volunteer.do", baseURL)
+	resp, err := client.R().SetHeader("Token", session.Get().Token).Get(url)
+	if err != nil {
+		return nil
+	}
+	var j struct {
+		DataList []struct {
+			Grade string `json:"grade"`
+			Name  string `json:"name"`
+		} `json:"dataList"`
+	}
+	if json.Unmarshal(resp.Body(), &j) == nil {
+		for _, v := range j.DataList {
+			volunteerSlotsCache = append(volunteerSlotsCache, map[string]string{
+				"grade": v.Grade, "name": v.Name,
+			})
+		}
+	}
+	return volunteerSlotsCache
+}
+
 // ── Volunteer / Delete ──
 
-func Volunteer(client *resty.Client, teachingClassID, classType, campus string) error {
+func Volunteer(client *resty.Client, teachingClassID, classType, campus, volunteerIndex string) error {
 	s := session.Get()
 	if campus == "" {
 		campus = "1"
 	}
+	data := map[string]string{
+		"operationType":     "1",
+		"studentCode":       s.StudentCode,
+		"electiveBatchCode": s.BatchCode,
+		"teachingClassId":   teachingClassID,
+		"isMajor":           "1",
+		"campus":            campus,
+		"teachingClassType": classType,
+	}
+	// Pre-selection rounds require chooseVolunteer; immediate-selection rounds do not
+	if volunteerIndex != "" {
+		data["chooseVolunteer"] = volunteerIndex
+	}
 	xk := map[string]interface{}{
-		"data": map[string]string{
-			"operationType":     "1",
-			"studentCode":       s.StudentCode,
-			"electiveBatchCode": s.BatchCode,
-			"teachingClassId":   teachingClassID,
-			"isMajor":           "1",
-			"campus":            campus,
-			"teachingClassType": classType,
-		},
+		"data": data,
 	}
 	xkBytes, _ := json.Marshal(xk)
 	url := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/elective/volunteer.do", baseURL)

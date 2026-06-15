@@ -187,6 +187,8 @@ class _RoundPageState extends State<RoundPage> {
                                     selectedItemBuilder: (ctx) {
                                       return List.generate(_batches.length, (i) {
                                         return Text(_batches[i].name,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
                                               fontSize: 15,
                                               fontWeight: FontWeight.w500,
@@ -228,6 +230,8 @@ class _RoundPageState extends State<RoundPage> {
                                               const SizedBox(width: 12),
                                               Expanded(
                                                 child: Text(b.name,
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
                                                     style: TextStyle(
                                                       fontSize: 14,
                                                       fontWeight: selected
