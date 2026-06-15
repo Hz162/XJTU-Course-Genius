@@ -48,22 +48,24 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	st.Account = req.Account
 	st.Password = req.Password
 
-	// Captcha retry: reuse the saved client (same CAS session/execution as captcha image)
+	// Captcha retry: reuse the saved client (same CAS session/execution as captcha image).
+	// IMPORTANT: do NOT do a Head() check on captcha retry — it follows CAS redirect
+	// and creates a new CAS session, invalidating the stored execution.
 	var client *resty.Client
-	log.Printf("[captcha] HandleLogin: captcha=%q (len=%d) hasSavedClient=%v", req.Captcha, len(req.Captcha), s.client != nil)
-	if req.Captcha != "" && s.client != nil {
+	isRetry := req.Captcha != "" && s.client != nil
+	log.Printf("[captcha] HandleLogin: captcha=%q (len=%d) hasSavedClient=%v isRetry=%v", req.Captcha, len(req.Captcha), s.client != nil, isRetry)
+	if isRetry {
 		client = s.client
 	} else {
 		client = session.NewClient()
+		_, err := client.R().Head("https://xkfw.xjtu.edu.cn")
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": "网络连接失败，请检查网络"})
+			return
+		}
 	}
 
-	_, err := client.R().Head("https://xkfw.xjtu.edu.cn")
-	if err != nil {
-		writeJSON(w, 500, map[string]string{"error": "网络连接失败，请检查网络"})
-		return
-	}
-
-	err = auth.FullLoginWithCaptcha(client, req.Account, req.Password, req.Captcha)
+	err := auth.FullLoginWithCaptcha(client, req.Account, req.Password, req.Captcha)
 	if err != nil {
 		// Save client cookies so MFA/account-choice/captcha flows can continue
 		session.SaveCookiesFromHTTP(client.GetClient())
@@ -95,7 +97,7 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		writeJSON(w, 200, map[string]string{"error": err.Error()})
 		return
 	}
 

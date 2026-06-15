@@ -103,6 +103,9 @@ class _LoginPageState extends State<LoginPage> {
           _loading = false;
         });
         _loadCaptcha();
+        if (result['error'] != null) {
+          _showError(result['error']);
+        }
         return;
       }
 

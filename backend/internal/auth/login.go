@@ -193,11 +193,6 @@ func FullLoginWithCaptcha(client *resty.Client, account, password, captcha strin
 		captchaFpID = fpID
 	}
 
-	// Check captcha BEFORE consuming execution (matching XJTUToolBox logic)
-	if IsCaptchaRequired() && captcha == "" {
-		stdlog.Println("[captcha] failCount>=3, captcha empty, returning REQUIRE_CAPTCHA before POST")
-		return &CaptchaNeededError{}
-	}
 
 	return postCASRaw(httpClient, casURL, account, encPwd, execution, mfaState, fpID, captcha, "")
 }
@@ -312,6 +307,13 @@ func postCASRaw(httpClient *http.Client, casURL, account, encPwd, execution, mfa
 	// CAS returned captcha page
 	if isCaptchaPage(body) {
 		failCount++
+		// Extract new execution from captcha page for retry
+		newExec := extractExecution(body)
+		if newExec != "" {
+			captchaExecution = newExec
+			captchaCASURL = resp.Request.URL.String()
+			stdlog.Printf("[captcha] updated execution from captcha page: %s", newExec[:40])
+		}
 		if captcha != "" {
 			// We sent a captcha but CAS still shows captcha page → wrong code
 			return &CaptchaNeededError{Message: "验证码错误，请重试"}
