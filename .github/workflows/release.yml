@@ -5,11 +5,22 @@ on:
     tags: ['v*']
   workflow_dispatch:
     inputs:
-      platform:
-        description: 'Platform to build'
-        type: choice
-        options: [all, windows, linux, macos]
-        default: all
+      windows:
+        description: 'Build Windows'
+        type: boolean
+        default: false
+      linux:
+        description: 'Build Linux'
+        type: boolean
+        default: false
+      macos:
+        description: 'Build macOS'
+        type: boolean
+        default: false
+      release_tag:
+        description: 'Update release tag (e.g. v4.3) — leave empty to skip release'
+        type: string
+        default: ''
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -24,12 +35,17 @@ jobs:
           - goos: windows
             ext: .exe
             target: windows
+            build: ${{ github.event_name == 'push' || github.event.inputs.windows == 'true' || github.event.inputs.windows == 'all' }}
           - goos: linux
             ext: ''
             target: linux
+            build: ${{ github.event_name == 'push' || github.event.inputs.linux == 'true' || github.event.inputs.windows == 'all' }}
           - goos: darwin
             ext: ''
             target: macos
+            build: ${{ github.event_name == 'push' || github.event.inputs.macos == 'true' || github.event.inputs.windows == 'all' }}
+    # Only build backends that are needed
+    if: ${{ matrix.build }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -45,46 +61,36 @@ jobs:
           name: backend-${{ matrix.target }}
           path: backend/xjtu-genius${{ matrix.ext }}
 
-  # ── Windows: Flutter build + zip + Inno Setup installer ──
+  # ── Windows ──
   build-windows:
-    if: ${{ github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'windows' }}
     needs: build-backend
+    if: ${{ github.event_name == 'push' || github.event.inputs.windows == 'true' }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: '3.44.1'
-
       - uses: actions/download-artifact@v4
-        with:
-          name: backend-windows
-          path: backend/
-
+        with: { name: backend-windows, path: backend/ }
       - name: Build Flutter
         run: cd frontend && flutter build windows --release
-
       - name: Bundle portable zip
         shell: pwsh
         run: |
-          $bundle = "bundle"
-          mkdir $bundle
+          $bundle = "bundle"; mkdir $bundle
           Copy-Item "frontend\build\windows\x64\runner\Release\*" $bundle -Recurse
           Copy-Item "backend\xjtu-genius.exe" $bundle
           Compress-Archive -Path "$bundle\*" -DestinationPath "XJTU-Course-Genius-windows-x64.zip"
-
-      - name: Download Chinese ISL for Inno Setup
+      - name: Download Chinese ISL
         shell: pwsh
         run: |
-          $langDir = "${env:ProgramFiles(x86)}\Inno Setup 6\Languages"
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/ChineseSimplified.isl" -OutFile "$langDir\ChineseSimplified.isl"
-
+          $d = "${env:ProgramFiles(x86)}\Inno Setup 6\Languages"
+          Invoke-WebRequest "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/ChineseSimplified.isl" -OutFile "$d\ChineseSimplified.isl"
       - name: Build installer
         shell: bash
         run: iscc scripts/setupconfig.iss
-
       - uses: actions/upload-artifact@v4
         with:
           name: XJTU-Course-Genius-windows-x64
@@ -92,46 +98,30 @@ jobs:
             XJTU-Course-Genius-windows-x64.zip
             dist/XJTU-Course-Genius-Setup-v*.exe
 
-  # ── Linux: Flutter build + .deb ──
+  # ── Linux ──
   build-linux:
-    if: ${{ github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'linux' }}
     needs: build-backend
+    if: ${{ github.event_name == 'push' || github.event.inputs.linux == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: '3.44.1'
-
-      - run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y cmake pkg-config libgtk-3-dev
-
+        with: { channel: stable, flutter-version: '3.44.1' }
+      - run: sudo apt-get update -qq && sudo apt-get install -y cmake pkg-config libgtk-3-dev
       - uses: actions/download-artifact@v4
-        with:
-          name: backend-linux
-          path: backend/
-
+        with: { name: backend-linux, path: backend/ }
       - run: chmod +x backend/xjtu-genius
-
       - name: Build Flutter
         run: cd frontend && flutter build linux --release
-
       - name: Package .deb
         run: |
-          VER="${{ github.ref_name }}"
-          VER="${VER#v}"
-          if [ "$VER" = "refs/heads/main" ]; then VER="dev"; fi
+          VER="${{ github.ref_name }}"; VER="${VER#v}"
+          [ "$VER" = "refs/heads/main" ] && VER="dev"
           INSTALL_DIR="pkg/opt/xjtu-course-genius"
           mkdir -p "$INSTALL_DIR" pkg/DEBIAN
-
           cp -r frontend/build/linux/x64/release/bundle/* "$INSTALL_DIR/"
           cp backend/xjtu-genius "$INSTALL_DIR/"
           chmod +x "$INSTALL_DIR/xjtu_course_genius" "$INSTALL_DIR/xjtu-genius"
-
-          # Desktop entry
           mkdir -p pkg/usr/share/applications
           cat > pkg/usr/share/applications/xjtu-course-genius.desktop << 'EOF'
           [Desktop Entry]
@@ -144,15 +134,11 @@ jobs:
           Categories=Education;
           Terminal=false
           EOF
-          # Install icons at all standard sizes (hicolor theme)
           for size in 48 64 128 256; do
             mkdir -p "pkg/usr/share/icons/hicolor/${size}x${size}/apps"
             cp "assets/linux_icons/${size}x${size}/apps/xjtu-course-genius.png" \
                "pkg/usr/share/icons/hicolor/${size}x${size}/apps/xjtu-course-genius.png"
           done
-
-          # Control file
-          # Pre-remove: kill running processes by exact path
           cat > pkg/DEBIAN/prerm << 'PRERM'
           #!/bin/sh
           pkill -x -f "/opt/xjtu-course-genius/xjtu_course_genius" 2>/dev/null || true
@@ -160,20 +146,13 @@ jobs:
           exit 0
           PRERM
           chmod +x pkg/DEBIAN/prerm
-
-          # Post-install: update desktop database and icon cache
           cat > pkg/DEBIAN/postinst << 'POSTINST'
           #!/bin/sh
-          if command -v update-desktop-database >/dev/null 2>&1; then
-            update-desktop-database 2>/dev/null || true
-          fi
-          if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-            gtk-update-icon-cache /usr/share/icons/hicolor/ 2>/dev/null || true
-          fi
+          command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database 2>/dev/null || true
+          command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache /usr/share/icons/hicolor/ 2>/dev/null || true
           exit 0
           POSTINST
           chmod +x pkg/DEBIAN/postinst
-
           cat > pkg/DEBIAN/control << EOF
           Package: xjtu-course-genius
           Version: ${VER:-4.0}
@@ -183,11 +162,8 @@ jobs:
            Built with Flutter + Go backend.
           Depends: libgtk-3-0
           EOF
-
           dpkg-deb --build pkg "XJTU-Course-Genius-linux-x64.deb"
-          # Also portable tarball
           cd "$INSTALL_DIR" && tar czf "../../../../XJTU-Course-Genius-linux-x64.tar.gz" *
-
       - uses: actions/upload-artifact@v4
         with:
           name: XJTU-Course-Genius-linux-x64
@@ -195,51 +171,38 @@ jobs:
             XJTU-Course-Genius-linux-x64.deb
             XJTU-Course-Genius-linux-x64.tar.gz
 
-  # ── macOS: Flutter build + .dmg ──
+  # ── macOS ──
   build-macos:
-    if: ${{ github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'macos' }}
     needs: build-backend
+    if: ${{ github.event_name == 'push' || github.event.inputs.macos == 'true' }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: '3.44.1'
-
+        with: { channel: stable, flutter-version: '3.44.1' }
       - uses: actions/download-artifact@v4
-        with:
-          name: backend-macos
-          path: backend/
-
+        with: { name: backend-macos, path: backend/ }
       - run: chmod +x backend/xjtu-genius
-
       - name: Build Flutter
         run: cd frontend && flutter build macos --release
-
       - name: Package .dmg
         run: |
           app="frontend/build/macos/Build/Products/Release/xjtu_course_genius.app"
           cp backend/xjtu-genius "$app/Contents/MacOS/"
           chmod +x "$app/Contents/MacOS/xjtu-genius"
-
           mkdir dmg
           cp -r "$app" dmg/
           ln -s /Applications dmg/Applications
-          hdiutil create -volname "XJTU Course Genius" \
-            -srcfolder dmg -ov -format UDZO \
-            "XJTU-Course-Genius-macos.dmg"
-
+          hdiutil create -volname "XJTU Course Genius" -srcfolder dmg -ov -format UDZO "XJTU-Course-Genius-macos.dmg"
       - uses: actions/upload-artifact@v4
         with:
           name: XJTU-Course-Genius-macos
           path: XJTU-Course-Genius-macos.dmg
 
-  # ── GitHub Release (on tag push, runs even if some platforms fail) ──
+  # ── Release: tag push = full release, dispatch = update existing release ──
   release:
     needs: [build-windows, build-linux, build-macos]
-    if: always() && startsWith(github.ref, 'refs/tags/v') && !cancelled()
+    if: always() && !cancelled() && (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != '')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -250,16 +213,16 @@ jobs:
           path: artifacts/
           merge-multiple: true
 
-      - name: Flatten and list artifacts
+      - name: Collect assets
         run: |
           find artifacts -type f -exec mv {} ./ \;
           rm -rf artifacts
-          echo "=== Release assets ==="
           ls -lh
 
-      - name: Create Release
+      - name: Create/Update Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
           files: |
             XJTU-Course-Genius-windows-x64.zip
             XJTU-Course-Genius-Setup-v*.exe
@@ -267,4 +230,4 @@ jobs:
             XJTU-Course-Genius-linux-x64.tar.gz
             XJTU-Course-Genius-macos.dmg
           fail_on_unmatched_files: false
-          generate_release_notes: true
+          generate_release_notes: ${{ startsWith(github.ref, 'refs/tags/v') }}
