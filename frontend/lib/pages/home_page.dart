@@ -1291,28 +1291,29 @@ class _HomePageState extends State<HomePage> {
                         const SizedBox(width: 4),
                         const Text('志愿', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textSecondary)),
                         const SizedBox(width: 4),
-                        DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _volunteerSlots.any((s) => s['grade'] == cv) ? cv : _volunteerSlots.first['grade'],
-                            isDense: true,
+                        PopupMenuButton<String>(
                             padding: EdgeInsets.zero,
-                            icon: const Icon(Icons.expand_more_rounded, size: 18, color: textMuted),
-                            borderRadius: BorderRadius.circular(radiusMd),
-                            dropdownColor: surfaceColor,
-                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: textPrimary),
-                            selectedItemBuilder: (_) => _volunteerSlots.map((s) => Text(s['name'] ?? '',
-                                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: textPrimary))).toList(),
-                            items: _volunteerSlots.map((s) => DropdownMenuItem(
-                              value: s['grade'] ?? '',
-                              child: Text(s['name'] ?? '',
-                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500)),
-                            )).toList(),
-                            onChanged: (v) => setState(() {
+                            iconSize: 0,
+                            icon: const Icon(Icons.expand_more_rounded, size: 16, color: textMuted),
+                            tooltip: '',
+                            offset: const Offset(0, 36),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusLg)),
+                            color: surfaceColor,
+                            surfaceTintColor: Colors.transparent,
+                            elevation: 8,
+                            shadowColor: const Color(0x20000000),
+                            position: PopupMenuPosition.under,
+                            onSelected: (v) => setState(() {
                               while (_wishList[i].length <= 6) { _wishList[i].add(''); }
-                              _wishList[i][6] = v ?? '';
+                              _wishList[i][6] = v;
                             }),
+                            itemBuilder: (_) => _volunteerSlots.map((s) => PopupMenuItem(
+                              value: s['grade'],
+                              height: 36,
+                              child: Text(s['name'] ?? '',
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: textPrimary)),
+                            )).toList(),
                           ),
-                        ),
                       ],
                     ),
                   ),
