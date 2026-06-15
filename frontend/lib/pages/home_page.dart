@@ -1264,41 +1264,45 @@ class _HomePageState extends State<HomePage> {
           // Volunteer slot selector (only for 预选 rounds)
           if (_volunteerSlots.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: DropdownButtonFormField<String>(
-                // ignore: deprecated_member_use
-                value: _volunteerSlots.any((s) => s['grade'] == cv) ? cv : _volunteerSlots.first['grade'],
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: '志愿',
-                  prefixIcon: const Icon(Icons.flag_rounded, color: primaryColor, size: 18),
-                  filled: true,
-                  fillColor: surfaceSecondary,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(radiusMd),
-                    borderSide: const BorderSide(color: borderColor),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(radiusMd),
-                    borderSide: const BorderSide(color: borderColor),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(radiusMd),
-                    borderSide: const BorderSide(color: primaryColor, width: 1.5),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: primaryColor.withAlpha(15),
+                  borderRadius: BorderRadius.circular(radiusMd),
                 ),
-                icon: const Icon(Icons.expand_more_rounded, color: textSecondary),
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: textPrimary),
-                items: _volunteerSlots.map((s) => DropdownMenuItem(
-                  value: s['grade'] ?? '',
-                  child: Text(s['name'] ?? '',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                )).toList(),
-                onChanged: (v) => setState(() {
-                  while (_wishList[i].length <= 6) { _wishList[i].add(''); }
-                  _wishList[i][6] = v ?? '';
-                }),
+                child: Row(
+                  children: [
+                    const Icon(Icons.flag_rounded, size: 16, color: primaryColor),
+                    const SizedBox(width: 8),
+                    const Text('志愿', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: textSecondary)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButton<String>(
+                        value: _volunteerSlots.any((s) => s['grade'] == cv) ? cv : _volunteerSlots.first['grade'],
+                        isExpanded: true,
+                        isDense: true,
+                        underline: const SizedBox.shrink(),
+                        icon: const Icon(Icons.expand_more_rounded, size: 18, color: primaryColor),
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textPrimary),
+                        selectedItemBuilder: (_) => _volunteerSlots.map((s) => Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(s['name'] ?? '',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textPrimary)),
+                        )).toList(),
+                        items: _volunteerSlots.map((s) => DropdownMenuItem(
+                          value: s['grade'] ?? '',
+                          child: Text(s['name'] ?? '',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                        )).toList(),
+                        onChanged: (v) => setState(() {
+                          while (_wishList[i].length <= 6) { _wishList[i].add(''); }
+                          _wishList[i][6] = v ?? '';
+                        }),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           if (conflicts.isNotEmpty) ...[
