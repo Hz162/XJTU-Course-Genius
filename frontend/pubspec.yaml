@@ -1,7 +1,7 @@
 name: xjtu_course_genius
 description: XJTU Course Genius - 西安交通大学选课辅助工具
 publish_to: 'none'
-version: 4.0.0
+version: 4.2.0
 
 environment:
   sdk: '>=3.2.0 <4.0.0'

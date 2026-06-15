@@ -1,8 +1,8 @@
 ; XJTU Course Genius — Inno Setup Script
-; v4.0: Flutter + Go rewrite, multi-instance, auto-relogin
+; v4.2: volunteer index selection, round name wrap
 
 #define MyAppName "XJTU Course Genius"
-#define MyAppVersion "4.1"
+#define MyAppVersion "4.2"
 #define MyAppPublisher "Hz"
 #define MyAppExeName "xjtu_course_genius.exe"
 
