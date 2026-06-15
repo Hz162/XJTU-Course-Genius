@@ -126,28 +126,48 @@ class _HomePageState extends State<HomePage> {
       final courseId = (item['teachingClassId'] ?? '').toString();
       final classType = (item['classType'] ?? _currentView).toString();
       final allowedSlots = await api.checkVolunteerSlots(courseId, classType, _currentCampus);
+      if (!mounted) return;
       final available = _volunteerSlots.where((s) => allowedSlots.contains(s['grade'])).toList();
 
       cv = await showDialog<String>(
         context: context,
-        builder: (ctx) => SimpleDialog(
-          title: const Text('选择志愿'),
-          children: [
-            if (available.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('无可选志愿槽位', style: TextStyle(color: textMuted)),
-              )
-            else
-              ...available.map((s) => SimpleDialogOption(
-                onPressed: () => Navigator.pop(ctx, s['grade']),
-                child: Text(s['name'] ?? s['grade'] ?? '?'),
-              )),
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(ctx, ''),
-              child: const Text('不设置', style: TextStyle(color: textMuted)),
+        builder: (ctx) => AlertDialog(
+          title: const Row(children: [
+            Icon(Icons.flag_rounded, size: 20, color: primaryColor),
+            SizedBox(width: 8),
+            Text('选择志愿', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          ]),
+          contentPadding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+          content: SizedBox(
+            width: 240,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: available.isEmpty
+                  ? [const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text('无可选志愿槽位', style: TextStyle(color: textMuted)))]
+                  : available.map((s) => InkWell(
+                        onTap: () => Navigator.pop(ctx, s['grade']),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                          child: Row(children: [
+                            Container(
+                              width: 28, height: 28,
+                              decoration: BoxDecoration(
+                                color: primaryColor.withAlpha(20),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Center(child: Text(s['grade'] ?? '?',
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: primaryColor))),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(s['name'] ?? '',
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                          ]),
+                        ),
+                      )).toList(),
             ),
-          ],
+          ),
         ),
       );
     }
@@ -1182,45 +1202,45 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
           const SizedBox(height: 10),
-          // Volunteer slot selector
+          // Volunteer slot selector (only for 预选 rounds)
           if (_volunteerSlots.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                children: [
-                  const Icon(Icons.flag, size: 14, color: textMuted),
-                  const SizedBox(width: 6),
-                  const Text('志愿: ',
-                      style: TextStyle(fontSize: 12, color: textSecondary)),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: surfaceSecondary,
-                      borderRadius: BorderRadius.circular(radiusSm),
-                      border: Border.all(color: borderColor),
-                    ),
-                    child: DropdownButton<String>(
-                      value: cv.isEmpty || _volunteerSlots.any((s) => s['grade'] == cv) ? cv : '',
-                      underline: const SizedBox.shrink(),
-                      isDense: true,
-                      style: const TextStyle(fontSize: 12, color: textPrimary),
-                      items: [
-                        const DropdownMenuItem(
-                            value: '',
-                            child: Text('不设置',
-                                style: TextStyle(fontSize: 12, color: textMuted))),
-                        ..._volunteerSlots.map((s) => DropdownMenuItem(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: primaryColor.withAlpha(12),
+                  borderRadius: BorderRadius.circular(radiusMd),
+                  border: Border.all(color: primaryColor.withAlpha(40)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.flag_rounded, size: 15, color: primaryColor),
+                    const SizedBox(width: 8),
+                    const Text('志愿',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: primaryColor)),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: DropdownButton<String>(
+                        value: _volunteerSlots.any((s) => s['grade'] == cv) ? cv : _volunteerSlots.first['grade'],
+                        underline: const SizedBox.shrink(),
+                        isDense: true,
+                        isExpanded: true,
+                        icon: const Icon(Icons.expand_more_rounded, size: 16, color: primaryColor),
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: textPrimary),
+                        items: _volunteerSlots.map((s) => DropdownMenuItem(
                             value: s['grade'] ?? '',
                             child: Text(s['name'] ?? '',
-                                style: const TextStyle(fontSize: 12)))),
-                      ],
-                      onChanged: (v) => setState(() {
-                        while (_wishList[i].length <= 6) { _wishList[i].add(''); }
-                        _wishList[i][6] = v ?? '';
-                      }),
+                                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500))),
+                        ).toList(),
+                        onChanged: (v) => setState(() {
+                          while (_wishList[i].length <= 6) { _wishList[i].add(''); }
+                          _wishList[i][6] = v ?? '';
+                        }),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           if (conflicts.isNotEmpty) ...[
