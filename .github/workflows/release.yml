@@ -109,7 +109,7 @@ jobs:
 
       - run: |
           sudo apt-get update -qq
-          sudo apt-get install -y cmake pkg-config libgtk-3-dev
+          sudo apt-get install -y cmake pkg-config libgtk-3-dev imagemagick
 
       - uses: actions/download-artifact@v4
         with:
@@ -225,14 +225,12 @@ jobs:
 
       - name: Generate icons from logo
         run: |
-          # Generate macOS AppIcon PNGs from assets/logo.png
-          convert assets/logo.png -resize 16x16   frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_16.png
-          convert assets/logo.png -resize 32x32   frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_32.png
-          convert assets/logo.png -resize 64x64   frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_64.png
-          convert assets/logo.png -resize 128x128 frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_128.png
-          convert assets/logo.png -resize 256x256 frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_256.png
-          convert assets/logo.png -resize 512x512 frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_512.png
-          convert assets/logo.png -resize 1024x1024 frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png
+          # Use sips (built-in macOS) to generate AppIcon PNGs
+          DST=frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset
+          for size in 16 32 64 128 256 512 1024; do
+            cp assets/logo.png "$DST/app_icon_${size}.png"
+            sips -z $size $size "$DST/app_icon_${size}.png" > /dev/null
+          done
 
       - name: Build Flutter
         run: cd frontend && flutter build macos --release
