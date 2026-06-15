@@ -1,8 +1,8 @@
 ; XJTU Course Genius — Inno Setup Script
-; Updated from v3.6 (Python) to v4.0 (Flutter + Go)
+; v4.0: Flutter + Go rewrite, multi-instance, auto-relogin
 
 #define MyAppName "XJTU Course Genius"
-#define MyAppVersion "4.0"
+#define MyAppVersion "4.1"
 #define MyAppPublisher "Hz"
 #define MyAppExeName "xjtu_course_genius.exe"
 
@@ -47,6 +47,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "..\frontend\build\windows\x64\runner\Release\xjtu_course_genius.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\frontend\build\windows\x64\runner\Release\flutter_windows.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\frontend\build\windows\x64\runner\Release\screen_retriever_plugin.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "..\frontend\build\windows\x64\runner\Release\window_manager_plugin.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "..\frontend\build\windows\x64\runner\Release\data\*"; DestDir: "{app}\data"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; Go backend (auto-started by Flutter app)
 Source: "..\backend\xjtu-genius.exe"; DestDir: "{app}"; Flags: ignoreversion
