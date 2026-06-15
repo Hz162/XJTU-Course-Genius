@@ -29,6 +29,7 @@ type State struct {
 	Password     string
 	StudentCode  string
 	BatchCode    string // xklcdm (elective batch code)
+	BatchType    string // typeCode: "02"=正选
 	Campus       string
 	CampusList   []CampusInfo
 	Token        string
@@ -114,6 +115,12 @@ func SetStudentCode(code string) {
 func SetBatchCode(code string) {
 	state.mu.Lock()
 	state.BatchCode = code
+	state.mu.Unlock()
+}
+
+func SetBatchType(tc string) {
+	state.mu.Lock()
+	state.BatchType = tc
 	state.mu.Unlock()
 }
 

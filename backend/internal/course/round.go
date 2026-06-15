@@ -10,6 +10,9 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
+// batchTypeMap stores typeCode by batchCode for volunteer mode detection
+var batchTypeMap = map[string]string{}
+
 func GetBatches(client *resty.Client) ([]BatchInfo, error) {
 	s := session.Get()
 	url := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/student/%s.do?timestamp=%d",
@@ -25,6 +28,7 @@ func GetBatches(client *resty.Client) ([]BatchInfo, error) {
 				Code      string `json:"code"`
 				Name      string `json:"name"`
 				CanSelect string `json:"canSelect"`
+				TypeCode  string `json:"typeCode"`
 			} `json:"electiveBatchList"`
 		} `json:"data"`
 	}
@@ -38,6 +42,7 @@ func GetBatches(client *resty.Client) ([]BatchInfo, error) {
 			Name:      b.Name,
 			CanSelect: b.CanSelect,
 		})
+		batchTypeMap[b.Code] = b.TypeCode
 	}
 	return batches, nil
 }
@@ -45,6 +50,11 @@ func GetBatches(client *resty.Client) ([]BatchInfo, error) {
 func EnterRound(client *resty.Client, batchCode string) error {
 	session.SetBatchCode(batchCode)
 	s := session.Get()
+
+	// Store batch type for volunteer mode detection
+	if tc, ok := batchTypeMap[batchCode]; ok {
+		session.SetBatchType(tc)
+	}
 
 	url := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/student/xkxf.do", baseURL)
 	resp, err := client.R().

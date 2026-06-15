@@ -48,6 +48,7 @@ class _HomePageState extends State<HomePage> {
     _loadConfig();
     _loadCampus();
     _loadCourseData('selected');
+    _loadVolunteerSlots();
   }
 
   @override
@@ -86,6 +87,9 @@ class _HomePageState extends State<HomePage> {
       final list = await api.getCampusList();
       if (mounted) setState(() => _campusList = list);
     } catch (_) {}
+  }
+
+  Future<void> _loadVolunteerSlots() async {
     try {
       final slots = await api.getVolunteerSlots();
       if (mounted) setState(() => _volunteerSlots = slots);

@@ -409,14 +409,16 @@ func GetVolunteerSlots(client *resty.Client) []map[string]string {
 			Name  string `json:"name"`
 		} `json:"dataList"`
 	}
-	if json.Unmarshal(resp.Body(), &j) == nil {
+	stdlog.Printf("[vol] GetVolunteerSlots body=%s", safeSlice(string(resp.Body()), 300))
+	if json.Unmarshal(resp.Body(), &j) == nil && len(j.DataList) > 0 {
 		for _, v := range j.DataList {
 			volunteerSlotsCache = append(volunteerSlotsCache, map[string]string{
 				"grade": v.Grade, "name": v.Name,
 			})
 		}
+		return volunteerSlotsCache
 	}
-	return volunteerSlotsCache
+	return []map[string]string{}
 }
 
 // ── Volunteer / Delete ──
@@ -435,8 +437,8 @@ func Volunteer(client *resty.Client, teachingClassID, classType, campus, volunte
 		"campus":            campus,
 		"teachingClassType": classType,
 	}
-	// Pre-selection rounds require chooseVolunteer; immediate-selection rounds do not
-	if volunteerIndex != "" {
+	// 正选(typeCode=02) no volunteer needed; 预选 needs chooseVolunteer
+	if st := session.Get(); st.BatchType != "02" && volunteerIndex != "" {
 		data["chooseVolunteer"] = volunteerIndex
 	}
 	xk := map[string]interface{}{
