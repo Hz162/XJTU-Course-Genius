@@ -157,41 +157,51 @@ class _HomePageState extends State<HomePage> {
       dialogShown = true;
       cv = await showDialog<String>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Row(children: [
-            Icon(Icons.flag_rounded, size: 20, color: primaryColor),
-            SizedBox(width: 8),
-            Text('选择志愿', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          ]),
-          contentPadding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
-          content: SizedBox(
-            width: 240,
+        builder: (ctx) => Dialog(
+          backgroundColor: surfaceColor,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusLg)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(0, 16, 0, 8),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children: available.isEmpty
-                  ? [const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text('无可选志愿槽位', style: TextStyle(color: textMuted)))]
-                  : available.map((s) => InkWell(
-                        onTap: () => Navigator.pop(ctx, s['grade']),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                          child: Row(children: [
-                            Container(
-                              width: 28, height: 28,
-                              decoration: BoxDecoration(
-                                color: primaryColor.withAlpha(20),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Center(child: Text(s['grade'] ?? '?',
-                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: primaryColor))),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(s['name'] ?? '',
-                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                          ]),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(children: [
+                    Icon(Icons.flag_rounded, size: 18, color: primaryColor),
+                    SizedBox(width: 8),
+                    Text('选择志愿', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textPrimary)),
+                  ]),
+                ),
+                const SizedBox(height: 8),
+                if (available.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text('无可选志愿槽位', style: TextStyle(color: textMuted)))
+                else
+                  ...available.map((s) => InkWell(
+                    onTap: () => Navigator.pop(ctx, s['grade']),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Row(children: [
+                        Container(
+                          width: 26, height: 26,
+                          decoration: BoxDecoration(
+                            color: primaryColor.withAlpha(20),
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: Center(child: Text(s['grade'] ?? '?',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: primaryColor))),
                         ),
-                      )).toList(),
+                        const SizedBox(width: 10),
+                        Text(s['name'] ?? '',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: textPrimary)),
+                      ]),
+                    ),
+                  )),
+              ],
             ),
           ),
         ),
@@ -1264,45 +1274,49 @@ class _HomePageState extends State<HomePage> {
           // Volunteer slot selector (only for 预选 rounds)
           if (_volunteerSlots.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: primaryColor.withAlpha(15),
-                  borderRadius: BorderRadius.circular(radiusMd),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.flag_rounded, size: 16, color: primaryColor),
-                    const SizedBox(width: 8),
-                    const Text('志愿', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: textSecondary)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: DropdownButton<String>(
-                        value: _volunteerSlots.any((s) => s['grade'] == cv) ? cv : _volunteerSlots.first['grade'],
-                        isExpanded: true,
-                        isDense: true,
-                        underline: const SizedBox.shrink(),
-                        icon: const Icon(Icons.expand_more_rounded, size: 18, color: primaryColor),
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textPrimary),
-                        selectedItemBuilder: (_) => _volunteerSlots.map((s) => Align(
-                          alignment: Alignment.centerRight,
-                          child: Text(s['name'] ?? '',
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textPrimary)),
-                        )).toList(),
-                        items: _volunteerSlots.map((s) => DropdownMenuItem(
-                          value: s['grade'] ?? '',
-                          child: Text(s['name'] ?? '',
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                        )).toList(),
-                        onChanged: (v) => setState(() {
-                          while (_wishList[i].length <= 6) { _wishList[i].add(''); }
-                          _wishList[i][6] = v ?? '';
-                        }),
-                      ),
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: surfaceSecondary,
+                      borderRadius: BorderRadius.circular(radiusMd),
+                      border: Border.all(color: borderColor),
                     ),
-                  ],
-                ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.flag_rounded, size: 15, color: textMuted),
+                        const SizedBox(width: 4),
+                        const Text('志愿', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textSecondary)),
+                        const SizedBox(width: 4),
+                        DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _volunteerSlots.any((s) => s['grade'] == cv) ? cv : _volunteerSlots.first['grade'],
+                            isDense: true,
+                            padding: EdgeInsets.zero,
+                            icon: const Icon(Icons.expand_more_rounded, size: 18, color: textMuted),
+                            borderRadius: BorderRadius.circular(radiusMd),
+                            dropdownColor: surfaceColor,
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: textPrimary),
+                            selectedItemBuilder: (_) => _volunteerSlots.map((s) => Text(s['name'] ?? '',
+                                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: textPrimary))).toList(),
+                            items: _volunteerSlots.map((s) => DropdownMenuItem(
+                              value: s['grade'] ?? '',
+                              child: Text(s['name'] ?? '',
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500)),
+                            )).toList(),
+                            onChanged: (v) => setState(() {
+                              while (_wishList[i].length <= 6) { _wishList[i].add(''); }
+                              _wishList[i][6] = v ?? '';
+                            }),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           if (conflicts.isNotEmpty) ...[
