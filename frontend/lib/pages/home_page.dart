@@ -40,6 +40,9 @@ class _HomePageState extends State<HomePage> {
 
   bool _sidebarCollapsed = false;
 
+  // teachingClassId → courseName cache for conflict chip tooltips
+  final Map<String, String> _courseNameCache = {};
+
   @override
   void initState() {
     super.initState();
@@ -130,6 +133,16 @@ class _HomePageState extends State<HomePage> {
         data = (result['courses'] as List?) ?? [];
       }
       if (!mounted) return;
+      // Populate course name cache for conflict chip tooltips
+      for (final c in data) {
+        if (c is Map) {
+          final cid = (c['teachingClassId'] ?? '').toString();
+          final cname = (c['courseName'] ?? '').toString();
+          if (cid.isNotEmpty && cname.isNotEmpty) {
+            _courseNameCache[cid] = cname;
+          }
+        }
+      }
       setState(() {
         _tableData = data;
         _loading = false;
@@ -161,43 +174,33 @@ class _HomePageState extends State<HomePage> {
           backgroundColor: surfaceColor,
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusLg)),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(0, 16, 0, 8),
-            child: Column(
+          child: SizedBox(width: 200, child: Padding(padding: const EdgeInsets.fromLTRB(0, 14, 0, 6), child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(children: [
-                    Icon(Icons.flag_rounded, size: 18, color: primaryColor),
+                  padding: EdgeInsets.symmetric(horizontal: 16), child: Row(children: [ Icon(Icons.flag_rounded, size: 17, color: primaryColor),
                     SizedBox(width: 8),
-                    Text('选择志愿', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textPrimary)),
+                    Text('选择志愿', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textPrimary)),
                   ]),
                 ),
-                const SizedBox(height: 8),
-                if (available.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(20),
+                const SizedBox(height: 4), if (available.isEmpty) const Padding( padding: EdgeInsets.all(16),
                     child: Text('无可选志愿槽位', style: TextStyle(color: textMuted)))
                 else
                   ...available.map((s) => InkWell(
                     onTap: () => Navigator.pop(ctx, s['grade']),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       child: Row(children: [
                         Container(
-                          width: 26, height: 26,
-                          decoration: BoxDecoration(
-                            color: primaryColor.withAlpha(20),
-                            borderRadius: BorderRadius.circular(7),
+                          width: 24, height: 24, decoration: BoxDecoration( color: primaryColor.withAlpha(20), borderRadius: BorderRadius.circular(6),
                           ),
                           child: Center(child: Text(s['grade'] ?? '?',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: primaryColor))),
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: primaryColor))),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         Text(s['name'] ?? '',
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: textPrimary)),
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: textPrimary)),
                       ]),
                     ),
                   )),
@@ -205,6 +208,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
+      ),
       );
       } catch (_) {
         // checkVolunteerSlots failed — skip dialog
@@ -1256,6 +1260,7 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         children: [
+          // ── Course ID ──
           Row(
             children: [
               const Icon(Icons.tag, size: 14, color: textMuted),
@@ -1271,116 +1276,137 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
           const SizedBox(height: 10),
-          // Volunteer slot selector (only for 预选 rounds)
-          if (_volunteerSlots.isNotEmpty)
+          // ── Row: Volunteer selector + Add Conflict button ──
+          if (_volunteerSlots.isNotEmpty || conflicts.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.only(bottom: 4),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: surfaceSecondary,
-                      borderRadius: BorderRadius.circular(radiusMd),
-                      border: Border.all(color: borderColor),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.flag_rounded, size: 15, color: textMuted),
-                        const SizedBox(width: 4),
-                        const Text('志愿', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textSecondary)),
-                        const SizedBox(width: 4),
-                        PopupMenuButton<String>(
-                            padding: EdgeInsets.zero,
-                            iconSize: 0,
-                            icon: const Icon(Icons.expand_more_rounded, size: 16, color: textMuted),
-                            tooltip: '',
-                            offset: const Offset(0, 36),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusLg)),
-                            color: surfaceColor,
-                            surfaceTintColor: Colors.transparent,
-                            elevation: 8,
-                            shadowColor: const Color(0x20000000),
-                            position: PopupMenuPosition.under,
-                            onSelected: (v) => setState(() {
-                              while (_wishList[i].length <= 6) { _wishList[i].add(''); }
-                              _wishList[i][6] = v;
-                            }),
-                            itemBuilder: (_) => _volunteerSlots.map((s) => PopupMenuItem(
-                              value: s['grade'],
-                              height: 36,
-                              child: Text(s['name'] ?? '',
-                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: textPrimary)),
-                            )).toList(),
+                  // Volunteer selector chip
+                  if (_volunteerSlots.isNotEmpty)
+                    Builder(
+                      builder: (ctx) {
+                        final slot = _volunteerSlots.firstWhere(
+                          (s) => s['grade'] == cv,
+                          orElse: () => _volunteerSlots.first,
+                        );
+                        final name = (slot['name'] ?? slot['grade'] ?? '志愿');
+                        return GestureDetector(
+                          onTap: () {
+                            final box = ctx.findRenderObject()! as RenderBox;
+                            final offset = box.localToGlobal(Offset.zero);
+                            showMenu<String>(
+                              context: ctx,
+                              position: RelativeRect.fromLTRB(
+                                offset.dx, offset.dy + box.size.height + 2,
+                                offset.dx + box.size.width, offset.dy + box.size.height + 2,
+                              ),
+                              items: _volunteerSlots.map((s) => PopupMenuItem<String>(
+                                value: s['grade'],
+                                height: 36,
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                child: Text(s['name'] ?? '',
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: textPrimary)),
+                              )).toList(),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusSm)),
+                              color: surfaceColor,
+                              elevation: 8,
+                            ).then((v) {
+                              if (v != null && mounted) {
+                                setState(() {
+                                  while (_wishList[i].length <= 6) { _wishList[i].add(''); }
+                                  _wishList[i][6] = v;
+                                });
+                              }
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: surfaceSecondary,
+                              borderRadius: BorderRadius.circular(radiusSm),
+                              border: Border.all(color: borderColor),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.flag_rounded, size: 13, color: primaryColor),
+                                const SizedBox(width: 4),
+                                Text(name,
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: textPrimary)),
+                                const SizedBox(width: 2),
+                                const Icon(Icons.arrow_drop_down_rounded, size: 15, color: textSecondary),
+                              ],
+                            ),
                           ),
-                      ],
+                        );
+                      },
+                    ),
+                  const SizedBox(width: 8),
+                  // Add conflict button (inline, compact)
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showConflictPicker(i),
+                      icon: const Icon(Icons.add_rounded, size: 15),
+                      label: const Text('添加冲突课程', style: TextStyle(fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: textSecondary,
+                        side: const BorderSide(color: borderColor),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMd)),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          if (conflicts.isNotEmpty) ...[
-            const Text('冲突课程',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: textPrimary)),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: conflicts.map((cid) {
-                return Container(
-                  padding: const EdgeInsets.only(left: 10, right: 2),
-                  decoration: BoxDecoration(
-                    color: dangerColor.withAlpha(15),
-                    borderRadius: BorderRadius.circular(radiusSm),
-                    border: Border.all(
-                        color: dangerColor.withAlpha(40)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(cid,
-                          style: const TextStyle(
-                              fontSize: 11.5,
-                              fontFamily: 'monospace',
-                              color: dangerColor)),
-                      InkWell(
-                        borderRadius: BorderRadius.circular(4),
-                        onTap: () =>
-                            _removeConflictCourse(i, cid),
-                        child: const Padding(
-                          padding: EdgeInsets.all(4),
-                          child: Icon(Icons.close_rounded,
-                              size: 14, color: dangerColor),
+          // ── Conflict chips (below the action row) ──
+          if (conflicts.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: conflicts.map((cid) {
+                  final cname = _courseNameCache[cid];
+                  final tip = cname != null ? '$cname\n$cid' : cid;
+                  return Tooltip(
+                    message: tip,
+                    richMessage: cname != null ? TextSpan(
+                      children: [
+                        TextSpan(text: cname, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        const TextSpan(text: '\n'),
+                        TextSpan(text: cid, style: const TextStyle(fontFamily: 'monospace', fontSize: 11.5)),
+                      ],
+                    ) : null,
+                  child: Container(
+                    padding: const EdgeInsets.only(left: 7, right: 2, top: 4, bottom: 4),
+                    decoration: BoxDecoration(
+                      color: dangerColor.withAlpha(15),
+                      borderRadius: BorderRadius.circular(radiusSm),
+                      border: Border.all(color: dangerColor.withAlpha(40)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(cid,
+                            style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: dangerColor)),
+                        const SizedBox(width: 2),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(4),
+                          onTap: () => _removeConflictCourse(i, cid),
+                          child: const Padding(
+                            padding: EdgeInsets.all(3),
+                            child: Icon(Icons.close_rounded, size: 13, color: dangerColor),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 10),
-          ],
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => _showConflictPicker(i),
-              icon: const Icon(Icons.add_rounded, size: 16),
-              label: const Text('添加冲突课程',
-                  style: TextStyle(fontSize: 13)),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: textSecondary,
-                side: const BorderSide(
-                    color: borderColor, style: BorderStyle.solid),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(radiusMd)),
+                  ); // Tooltip
+                }).toList(),
               ),
             ),
-          ),
         ],
       ),
     );
