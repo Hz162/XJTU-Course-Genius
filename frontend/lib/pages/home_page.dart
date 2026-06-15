@@ -172,6 +172,9 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
+    // User dismissed volunteer dialog without picking → don't add
+    if (_volunteerSlots.isNotEmpty && cv == null) return;
+
     final entry = [
       (item['teachingClassId'] ?? '').toString(),
       (item['courseName'] ?? '').toString(),
@@ -1206,41 +1209,39 @@ class _HomePageState extends State<HomePage> {
           if (_volunteerSlots.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: primaryColor.withAlpha(12),
-                  borderRadius: BorderRadius.circular(radiusMd),
-                  border: Border.all(color: primaryColor.withAlpha(40)),
+              child: DropdownButtonFormField<String>(
+                initialValue: _volunteerSlots.any((s) => s['grade'] == cv) ? cv : _volunteerSlots.first['grade'],
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: '志愿',
+                  prefixIcon: const Icon(Icons.flag_rounded, color: primaryColor, size: 18),
+                  filled: true,
+                  fillColor: surfaceSecondary,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(radiusMd),
+                    borderSide: const BorderSide(color: borderColor),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(radiusMd),
+                    borderSide: const BorderSide(color: borderColor),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(radiusMd),
+                    borderSide: const BorderSide(color: primaryColor, width: 1.5),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.flag_rounded, size: 15, color: primaryColor),
-                    const SizedBox(width: 8),
-                    const Text('志愿',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: primaryColor)),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: DropdownButton<String>(
-                        value: _volunteerSlots.any((s) => s['grade'] == cv) ? cv : _volunteerSlots.first['grade'],
-                        underline: const SizedBox.shrink(),
-                        isDense: true,
-                        isExpanded: true,
-                        icon: const Icon(Icons.expand_more_rounded, size: 16, color: primaryColor),
-                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: textPrimary),
-                        items: _volunteerSlots.map((s) => DropdownMenuItem(
-                            value: s['grade'] ?? '',
-                            child: Text(s['name'] ?? '',
-                                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500))),
-                        ).toList(),
-                        onChanged: (v) => setState(() {
-                          while (_wishList[i].length <= 6) { _wishList[i].add(''); }
-                          _wishList[i][6] = v ?? '';
-                        }),
-                      ),
-                    ),
-                  ],
-                ),
+                icon: const Icon(Icons.expand_more_rounded, color: textSecondary),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: textPrimary),
+                items: _volunteerSlots.map((s) => DropdownMenuItem(
+                  value: s['grade'] ?? '',
+                  child: Text(s['name'] ?? '',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                )).toList(),
+                onChanged: (v) => setState(() {
+                  while (_wishList[i].length <= 6) { _wishList[i].add(''); }
+                  _wishList[i][6] = v ?? '';
+                }),
               ),
             ),
           if (conflicts.isNotEmpty) ...[
