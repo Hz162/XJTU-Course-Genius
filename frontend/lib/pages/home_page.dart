@@ -122,12 +122,13 @@ class _HomePageState extends State<HomePage> {
     // Pick volunteer slot if available
     String? cv;
     if (_volunteerSlots.isNotEmpty) {
-      // Ask server which slots this specific course can use (原网页逻辑)
-      final courseId = (item['teachingClassId'] ?? '').toString();
-      final classType = (item['classType'] ?? _currentView).toString();
-      final allowedSlots = await api.checkVolunteerSlots(courseId, classType, _currentCampus);
-      if (!mounted) return;
-      final available = _volunteerSlots.where((s) => allowedSlots.contains(s['grade'])).toList();
+      try {
+        // Ask server which slots this specific course can use (原网页逻辑)
+        final courseId = (item['teachingClassId'] ?? '').toString();
+        final classType = (item['classType'] ?? _currentView).toString();
+        final allowedSlots = await api.checkVolunteerSlots(courseId, classType, _currentCampus);
+        if (!mounted) return;
+        final available = _volunteerSlots.where((s) => allowedSlots.contains(s['grade'])).toList();
 
       cv = await showDialog<String>(
         context: context,

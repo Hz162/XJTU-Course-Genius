@@ -439,8 +439,8 @@ func QueryCourseVolunteerSlots(client *resty.Client, teachingClassID, classType,
 		baseURL, time.Now().UnixMilli())
 	resp, err := client.R().
 		SetHeader("Token", s.Token).
-		SetFormData(map[string]string{"queryParam": string(xkBytes)}).
-		Post(url)
+		SetQueryParams(map[string]string{"queryParam": string(xkBytes)}).
+		Get(url)
 	if err != nil {
 		return nil, err
 	}
