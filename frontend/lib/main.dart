@@ -4,10 +4,20 @@ import 'services/backend_service.dart';
 import 'theme/app_theme.dart';
 import 'pages/login_page.dart';
 
+/// Global navigator key for session-expired redirect from any page.
+final navigatorKey = GlobalKey<NavigatorState>();
+
+/// Redirect to login page, clearing navigation stack.
+void redirectToLogin() {
+  navigatorKey.currentState?.pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const LoginPage()),
+    (_) => false,
+  );
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Auto-start backend
   final backend = BackendService();
   await backend.start();
 
@@ -48,6 +58,7 @@ class _CourseGeniusAppState extends State<CourseGeniusApp>
       title: 'XJTU Course Genius',
       theme: appTheme(),
       debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

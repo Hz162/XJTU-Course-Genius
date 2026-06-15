@@ -1,7 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/course.dart';
+
+/// Thrown when the backend session has expired and auto-re-login failed.
+class SessionExpiredException implements Exception {
+  @override
+  String toString() => '会话已过期，请重新登录';
+}
 
 class ApiService {
   static const _defaultPort = 18720;
@@ -82,6 +89,8 @@ class ApiService {
 
   // ── HTTP helpers ──
 
+  bool _reloginInProgress = false;
+
   Future<dynamic> _request(
     String method,
     String path, {
@@ -102,9 +111,20 @@ class ApiService {
         throw Exception('Unknown method $method');
     }
 
-    // Detect HTML response (session expired, CAS redirect)
-    if (resp.body.trimLeft().startsWith('<')) {
-      throw Exception('会话已过期，请重新登录');
+    // Auto re-login on session expiry
+    if (resp.body.trimLeft().startsWith('<') && !_reloginInProgress) {
+      _reloginInProgress = true;
+      try {
+        debugPrint('[ApiService] session expired, auto relogin...');
+        final reloginOk = await _tryRelogin();
+        if (reloginOk) {
+          debugPrint('[ApiService] relogin OK, retrying $path');
+          return _request(method, path, body: body);
+        }
+      } finally {
+        _reloginInProgress = false;
+      }
+      throw SessionExpiredException();
     }
 
     if (resp.statusCode >= 400) {
@@ -112,7 +132,7 @@ class ApiService {
         final err = jsonDecode(resp.body);
         throw Exception(err['error'] ?? '请求失败');
       } catch (e) {
-        if (e is Exception) rethrow;
+        if (e is SessionExpiredException || e.toString().contains('会话')) rethrow;
         throw Exception('服务器错误 (${resp.statusCode})');
       }
     }
@@ -122,6 +142,20 @@ class ApiService {
     } catch (_) {
       throw Exception('服务器返回异常数据');
     }
+  }
+
+  Future<bool> _tryRelogin() async {
+    try {
+      final resp = await _client.post(
+        Uri.parse('$_baseUrl/relogin'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        return data['status'] == 'ok';
+      }
+    } catch (_) {}
+    return false;
   }
 
   // ── Login & MFA ──

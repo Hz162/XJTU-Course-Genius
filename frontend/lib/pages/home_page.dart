@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../main.dart';
 import '../models/course.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
@@ -104,7 +105,7 @@ class _HomePageState extends State<HomePage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      _showError(e.toString().replaceFirst('Exception: ', ''));
+      _handleApiError(e);
     }
   }
 
@@ -218,6 +219,15 @@ class _HomePageState extends State<HomePage> {
           content: Text(msg, style: const TextStyle(color: Colors.white)),
           backgroundColor: dangerColor),
     );
+  }
+
+  /// Handle API errors — redirects to login on session expiry.
+  void _handleApiError(Object e) {
+    if (e is SessionExpiredException) {
+      redirectToLogin();
+      return;
+    }
+    _showError(e.toString().replaceFirst('Exception: ', ''));
   }
 
   KeyEventResult _handleGlobalKey(FocusNode node, KeyEvent event) {
@@ -1355,6 +1365,7 @@ class _HomePageState extends State<HomePage> {
       // Refresh selected courses
       _loadCourseData('selected');
     } catch (e) {
+      if (e is SessionExpiredException) { redirectToLogin(); return; }
       _showError('退课失败: ${e.toString().replaceFirst("Exception: ", "")}');
     }
   }
