@@ -405,20 +405,62 @@ func GetVolunteerSlots(client *resty.Client) []map[string]string {
 	}
 	var j struct {
 		DataList []struct {
-			Grade string `json:"grade"`
-			Name  string `json:"name"`
+			Grade json.Number `json:"grade"`
+			Name  string      `json:"name"`
 		} `json:"dataList"`
 	}
 	stdlog.Printf("[vol] GetVolunteerSlots body=%s", safeSlice(string(resp.Body()), 300))
 	if json.Unmarshal(resp.Body(), &j) == nil && len(j.DataList) > 0 {
 		for _, v := range j.DataList {
 			volunteerSlotsCache = append(volunteerSlotsCache, map[string]string{
-				"grade": v.Grade, "name": v.Name,
+				"grade": v.Grade.String(), "name": v.Name,
 			})
 		}
 		return volunteerSlotsCache
 	}
 	return []map[string]string{}
+}
+
+// Query valid volunteer slots for a specific course (原网页: queryCourseCanSelectVolunteer)
+func QueryCourseVolunteerSlots(client *resty.Client, teachingClassID, classType, campus string) ([]string, error) {
+	s := session.Get()
+	if campus == "" {
+		campus = "1"
+	}
+	data := map[string]string{
+		"studentCode":       s.StudentCode,
+		"electiveBatchCode": s.BatchCode,
+		"teachingClassId":   teachingClassID,
+		"teachingClassType": classType,
+		"campus":            campus,
+	}
+	xkBytes, _ := json.Marshal(map[string]interface{}{"data": data})
+	url := fmt.Sprintf("%s/xsxkapp/sys/xsxkapp/elective/course/volunteer.do?timestamp=%d",
+		baseURL, time.Now().UnixMilli())
+	resp, err := client.R().
+		SetHeader("Token", s.Token).
+		SetFormData(map[string]string{"queryParam": string(xkBytes)}).
+		Post(url)
+	if err != nil {
+		return nil, err
+	}
+	stdlog.Printf("[vol] QueryCourseVolunteerSlots %s: body=%s", teachingClassID, safeSlice(string(resp.Body()), 300))
+	var j struct {
+		Data struct {
+			ChooseVolunteerList []struct {
+				Grade string `json:"grade"`
+				Name  string `json:"name"`
+			} `json:"chooseVolunteerList"`
+		} `json:"data"`
+	}
+	if json.Unmarshal(resp.Body(), &j) == nil {
+		var slots []string
+		for _, v := range j.Data.ChooseVolunteerList {
+			slots = append(slots, v.Grade)
+		}
+		return slots, nil
+	}
+	return nil, nil
 }
 
 // ── Volunteer / Delete ──

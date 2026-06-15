@@ -122,15 +122,27 @@ class _HomePageState extends State<HomePage> {
     // Pick volunteer slot if available
     String? cv;
     if (_volunteerSlots.isNotEmpty) {
+      // Ask server which slots this specific course can use (原网页逻辑)
+      final courseId = (item['teachingClassId'] ?? '').toString();
+      final classType = (item['classType'] ?? _currentView).toString();
+      final allowedSlots = await api.checkVolunteerSlots(courseId, classType, _currentCampus);
+      final available = _volunteerSlots.where((s) => allowedSlots.contains(s['grade'])).toList();
+
       cv = await showDialog<String>(
         context: context,
         builder: (ctx) => SimpleDialog(
           title: const Text('选择志愿'),
           children: [
-            ..._volunteerSlots.map((s) => SimpleDialogOption(
-              onPressed: () => Navigator.pop(ctx, s['grade']),
-              child: Text(s['name'] ?? s['grade'] ?? '?'),
-            )),
+            if (available.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('无可选志愿槽位', style: TextStyle(color: textMuted)),
+              )
+            else
+              ...available.map((s) => SimpleDialogOption(
+                onPressed: () => Navigator.pop(ctx, s['grade']),
+                child: Text(s['name'] ?? s['grade'] ?? '?'),
+              )),
             SimpleDialogOption(
               onPressed: () => Navigator.pop(ctx, ''),
               child: const Text('不设置', style: TextStyle(color: textMuted)),
@@ -240,6 +252,7 @@ class _HomePageState extends State<HomePage> {
     }
     if (item != SidebarItem.selection && item != SidebarItem.config) {
       _loadCourseData(_currentView);
+      if (_volunteerSlots.isEmpty) _loadVolunteerSlots();
     }
   }
 

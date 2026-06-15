@@ -257,6 +257,12 @@ class ApiService {
         {'grade': e['grade']?.toString() ?? '', 'name': e['name']?.toString() ?? ''}).toList();
   }
 
+  /// Ask server which volunteer slots this specific course can go into
+  Future<List<String>> checkVolunteerSlots(String courseId, String classType, String campus) async {
+    final data = await _request('GET', '/volunteer/check-slots?courseId=$courseId&classType=$classType&campus=$campus');
+    return (data as List).map<String>((e) => e.toString()).toList();
+  }
+
   // ── Session ──
 
   Future<bool> checkSession() async {

@@ -371,6 +371,19 @@ func (s *Server) HandleVolunteerSlots(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, slots)
 }
 
+// POST /api/volunteer/check-slots?courseId=xxx&classType=xxx&campus=xxx
+func (s *Server) HandleVolunteerCheckSlots(w http.ResponseWriter, r *http.Request) {
+	courseID := r.URL.Query().Get("courseId")
+	classType := r.URL.Query().Get("classType")
+	campus := r.URL.Query().Get("campus")
+	slots, err := course.QueryCourseVolunteerSlots(s.client, courseID, classType, campus)
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, slots)
+}
+
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

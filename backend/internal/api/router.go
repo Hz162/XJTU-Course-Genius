@@ -41,6 +41,7 @@ func NewRouter() *chi.Mux {
 		r.Get("/courses/query/{type}", s.HandleQueryCourses)
 
 		r.Get("/volunteer/slots", s.HandleVolunteerSlots)
+		r.Get("/volunteer/check-slots", s.HandleVolunteerCheckSlots)
 		r.Get("/campus", s.HandleCampusList)
 		r.Post("/campus/set", s.HandleCampusSet)
 
