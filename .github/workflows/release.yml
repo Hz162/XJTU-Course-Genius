@@ -75,7 +75,7 @@ jobs:
           $out = "$env:RUNNER_TEMP\innosetup.exe"
           Invoke-WebRequest -Uri $url -OutFile $out
           & $out /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="$env:RUNNER_TEMP\InnoSetup"
-          echo "$env:RUNNER_TEMP\InnoSetup" >> $env:GITHUB_PATH
+          Add-Content -Path $env:GITHUB_PATH -Value "$env:RUNNER_TEMP\InnoSetup"
 
       - name: Download Chinese ISL
         shell: pwsh
