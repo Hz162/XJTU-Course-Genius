@@ -28,10 +28,15 @@ class ApiService {
     }
   }
 
-  /// Auto-discover backend by reading port file, then fall back to trying ports.
-  /// Returns the discovered base URL.
+  /// Connect directly to a backend at the given port.
+  void connectPort(int port) {
+    _baseUrl = 'http://127.0.0.1:$port/api';
+  }
+
+  /// Auto-discover backend: first try known port, then scan.
+  /// Use [connectPort] if you already know the backend's port.
   Future<String> discover() async {
-    // 1) Try reading port file written by backend
+    // 1) Try reading port file written by backend (shared file, last write wins)
     try {
       final portFile = File('$_configDir${Platform.pathSeparator}port');
       if (await portFile.exists()) {
@@ -97,11 +102,26 @@ class ApiService {
         throw Exception('Unknown method $method');
     }
 
-    if (resp.statusCode >= 400) {
-      final err = jsonDecode(resp.body);
-      throw Exception(err['error'] ?? '请求失败');
+    // Detect HTML response (session expired, CAS redirect)
+    if (resp.body.trimLeft().startsWith('<')) {
+      throw Exception('会话已过期，请重新登录');
     }
-    return jsonDecode(resp.body);
+
+    if (resp.statusCode >= 400) {
+      try {
+        final err = jsonDecode(resp.body);
+        throw Exception(err['error'] ?? '请求失败');
+      } catch (e) {
+        if (e is Exception) rethrow;
+        throw Exception('服务器错误 (${resp.statusCode})');
+      }
+    }
+
+    try {
+      return jsonDecode(resp.body);
+    } catch (_) {
+      throw Exception('服务器返回异常数据');
+    }
   }
 
   // ── Login & MFA ──

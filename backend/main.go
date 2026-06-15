@@ -112,6 +112,8 @@ func main() {
 	writePortFile(port)
 
 	addr := "127.0.0.1:" + port
+	// Machine-readable port announcement — Flutter subprocess parses this
+	fmt.Printf("PORT=%s\n", port)
 	fmt.Printf("XJTU Course Genius backend listening on http://%s\n", addr)
 	log.Printf("[main] listening on http://%s", addr)
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
+import '../services/backend_service.dart';
 import '../services/ime_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/window_bar.dart';
@@ -30,7 +31,8 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-    _api.discover(); // auto-detect backend port
+    // Multi-instance: each Flutter app connects to its own backend subprocess
+    BackendService().port.then((port) => _api.connectPort(port));
     _accountFocus.addListener(() {
       if (_accountFocus.hasFocus) {
         ImeService.onFieldFocus();

@@ -8,33 +8,39 @@ class BackendService {
   BackendService._();
 
   Process? _process;
+  final _portCompleter = Completer<int>();
+
+  /// Returns the backend port once it has been started and the port is known.
+  Future<int> get port => _portCompleter.future;
 
   String get _exeName {
     if (Platform.isWindows) return 'xjtu-genius.exe';
     return 'xjtu-genius';
   }
 
-  /// Find the backend binary: same dir as Flutter exe, then project dir, then PATH.
+  /// Find the backend binary.
   String? _findBackend() {
     final flutterExe = File(Platform.resolvedExecutable);
     final flutterDir = flutterExe.parent;
 
     // 1) Same directory as Flutter executable (release layout)
-    final sibling = File('${flutterDir.path}${Platform.pathSeparator}$_exeName');
+    final sibling =
+        File('${flutterDir.path}${Platform.pathSeparator}$_exeName');
     if (sibling.existsSync()) return sibling.path;
 
     // 2) Project backend directory (dev layout)
-    // Navigate up from build/.../runner/Debug|Release to project root
     var dir = flutterDir;
     for (var i = 0; i < 8; i++) {
-      final candidate = File('${dir.path}${Platform.pathSeparator}backend$_exeName');
+      final candidate =
+          File('${dir.path}${Platform.pathSeparator}backend$_exeName');
       if (candidate.existsSync()) return candidate.path;
       dir = dir.parent;
     }
 
-    // 3) Backend directly inside project directory
+    // 3) Backend inside project directory
     final backendDir = '${flutterDir.path}${Platform.pathSeparator}backend';
-    final backendFile = File('$backendDir${Platform.pathSeparator}$_exeName');
+    final backendFile =
+        File('$backendDir${Platform.pathSeparator}$_exeName');
     if (backendFile.existsSync()) return backendFile.path;
 
     return null;
@@ -57,17 +63,32 @@ class BackendService {
         mode: ProcessStartMode.normal,
       );
 
-      // Log backend output
+      // Parse PORT= line from stdout for direct port discovery
+      final completer = _portCompleter;
       _process!.stdout
           .transform(const SystemEncoding().decoder)
-          .listen((s) => debugPrint('[backend] $s'));
+          .listen((chunk) {
+        for (final line in chunk.split('\n')) {
+          debugPrint('[backend] $line');
+          if (!completer.isCompleted && line.startsWith('PORT=')) {
+            final port = int.tryParse(line.substring(5).trim());
+            if (port != null) {
+              completer.complete(port);
+              debugPrint('[BackendService] backend port: $port');
+            }
+          }
+        }
+      });
+
       _process!.stderr
           .transform(const SystemEncoding().decoder)
-          .listen((s) => debugPrint('[backend] $s'));
+          .listen((s) => debugPrint('[backend-err] $s'));
 
-      // Detect crash
       _process!.exitCode.then((code) {
         debugPrint('[BackendService] backend exited with code $code');
+        if (!_portCompleter.isCompleted) {
+          _portCompleter.completeError('Backend exited before announcing port');
+        }
         _process = null;
       });
 
@@ -75,6 +96,9 @@ class BackendService {
       return true;
     } catch (e) {
       debugPrint('[BackendService] failed to start backend: $e');
+      if (!_portCompleter.isCompleted) {
+        _portCompleter.completeError(e);
+      }
       return false;
     }
   }
