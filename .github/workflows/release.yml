@@ -56,9 +56,6 @@ jobs:
           name: backend-windows
           path: backend/
 
-      - name: Generate icon from logo
-        run: convert assets/logo.png -resize 256x256 frontend/windows/runner/resources/app_icon.ico
-
       - name: Build Flutter
         run: cd frontend && flutter build windows --release
 
@@ -124,9 +121,9 @@ jobs:
       - name: Generate icons from logo
         run: |
           for size in 48 64 128 256; do
-            mkdir -p "assets/linux_icons/${{size}}x${{size}}/apps"
-            convert assets/logo.png -resize "${{size}}x${{size}}" \
-              "assets/linux_icons/${{size}}x${{size}}/apps/xjtu-course-genius.png"
+            mkdir -p "assets/linux_icons/${size}x${size}/apps"
+            convert assets/logo.png -resize "${size}x${size}" \
+              "assets/linux_icons/${size}x${size}/apps/xjtu-course-genius.png"
           done
 
       - name: Build Flutter
@@ -158,9 +155,9 @@ jobs:
           EOF
           # Install icons at all standard sizes (hicolor theme)
           for size in 48 64 128 256; do
-            mkdir -p "pkg/usr/share/icons/hicolor/${{size}}x${{size}}/apps"
-            cp "assets/linux_icons/${{size}}x${{size}}/apps/xjtu-course-genius.png" \
-               "pkg/usr/share/icons/hicolor/${{size}}x${{size}}/apps/xjtu-course-genius.png"
+            mkdir -p "pkg/usr/share/icons/hicolor/${size}x${size}/apps"
+            cp "assets/linux_icons/${size}x${size}/apps/xjtu-course-genius.png" \
+               "pkg/usr/share/icons/hicolor/${size}x${size}/apps/xjtu-course-genius.png"
           done
 
           # Control file

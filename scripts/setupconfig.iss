@@ -1,8 +1,8 @@
 ; XJTU Course Genius — Inno Setup Script
-; v4.2: volunteer index selection, round name wrap
+; v4.3: macOS entitlements, Linux packaging fixes, icon regeneration
 
 #define MyAppName "XJTU Course Genius"
-#define MyAppVersion "4.2"
+#define MyAppVersion "4.3"
 #define MyAppPublisher "Hz"
 #define MyAppExeName "xjtu_course_genius.exe"
 
