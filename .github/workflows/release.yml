@@ -26,7 +26,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # ── Go backend: cross-compile only needed platforms ──
+  # ── Go backend: always build all 3 (fast, ~30s) ──
   build-backend:
     runs-on: ubuntu-latest
     strategy:
@@ -35,17 +35,12 @@ jobs:
           - goos: windows
             ext: .exe
             target: windows
-            build: ${{ github.event_name == 'push' || github.event.inputs.windows == 'true' || github.event.inputs.windows == 'all' }}
           - goos: linux
             ext: ''
             target: linux
-            build: ${{ github.event_name == 'push' || github.event.inputs.linux == 'true' || github.event.inputs.windows == 'all' }}
           - goos: darwin
             ext: ''
             target: macos
-            build: ${{ github.event_name == 'push' || github.event.inputs.macos == 'true' || github.event.inputs.windows == 'all' }}
-    # Only build backends that are needed
-    if: ${{ matrix.build }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -202,7 +197,7 @@ jobs:
   # ── Release: tag push = full release, dispatch = update existing release ──
   release:
     needs: [build-windows, build-linux, build-macos]
-    if: always() && !cancelled() && (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != '')
+    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != '') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
