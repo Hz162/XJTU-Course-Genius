@@ -326,6 +326,30 @@ class _HomePageState extends State<HomePage> {
     _showError(e.toString().replaceFirst('Exception: ', ''));
   }
 
+  Widget _volunteerIndexChip(Map<String, dynamic> item) {
+    final id = (item['teachingClassId'] ?? '').toString();
+    for (final w in _wishList) {
+      if (w.isNotEmpty && w[0] == id && w.length > 6 && w[6].isNotEmpty) {
+        final idx = w[6];
+        final name = _volunteerSlots.firstWhere(
+          (s) => s['grade'] == idx,
+          orElse: () => {'name': idx},
+        )['name'] ?? '第$idx志愿';
+        return Container(
+          margin: const EdgeInsets.only(right: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: primaryColor.withAlpha(25),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(name,
+              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: primaryColor)),
+        );
+      }
+    }
+    return const SizedBox.shrink();
+  }
+
   KeyEventResult _handleGlobalKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final ctrl = HardwareKeyboard.instance.isControlPressed;
@@ -679,6 +703,9 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   if (_currentView == 'selected') ...[
+                    // Show volunteer index for pre-selection rounds
+                    if (_volunteerSlots.isNotEmpty)
+                      _volunteerIndexChip(item),
                     if (type.isNotEmpty)
                       Container(
                         margin: const EdgeInsets.only(right: 6),

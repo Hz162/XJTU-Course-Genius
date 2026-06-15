@@ -250,6 +250,10 @@ func (s *Server) HandleEnterRound(w http.ResponseWriter, r *http.Request) {
 // ── Courses ──
 
 func (s *Server) HandleSelectedCourses(w http.ResponseWriter, r *http.Request) {
+	// Auto-relogin if session dead
+	if !auth.IsSessionAlive(s.client) {
+		auth.ReloginIfNeeded(s.client)
+	}
 	results, err := course.QuerySelected(s.client)
 	if err != nil {
 		writeJSON(w, 500, map[string]string{"error": err.Error()})
