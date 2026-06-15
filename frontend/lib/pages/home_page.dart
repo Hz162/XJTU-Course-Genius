@@ -171,6 +171,9 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       );
+      } catch (_) {
+        // checkVolunteerSlots failed — skip dialog
+      }
     }
 
     // User dismissed volunteer dialog without picking → don't add
