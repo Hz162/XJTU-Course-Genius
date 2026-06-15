@@ -1210,7 +1210,8 @@ class _HomePageState extends State<HomePage> {
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: DropdownButtonFormField<String>(
-                initialValue: _volunteerSlots.any((s) => s['grade'] == cv) ? cv : _volunteerSlots.first['grade'],
+                // ignore: deprecated_member_use
+                value: _volunteerSlots.any((s) => s['grade'] == cv) ? cv : _volunteerSlots.first['grade'],
                 isExpanded: true,
                 decoration: InputDecoration(
                   labelText: '志愿',
