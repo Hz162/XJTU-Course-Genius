@@ -68,20 +68,11 @@ jobs:
           Copy-Item "backend\xjtu-genius.exe" $bundle
           Compress-Archive -Path "$bundle\*" -DestinationPath "XJTU-Course-Genius-windows-x64.zip"
 
-      - name: Install Inno Setup
+      - name: Download Chinese ISL for Inno Setup
         shell: pwsh
         run: |
-          $url = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe"
-          $out = "$env:RUNNER_TEMP\innosetup.exe"
-          Invoke-WebRequest -Uri $url -OutFile $out
-          & $out /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="$env:RUNNER_TEMP\InnoSetup"
-          Add-Content -Path $env:GITHUB_PATH -Value "$env:RUNNER_TEMP\InnoSetup"
-
-      - name: Download Chinese ISL
-        shell: pwsh
-        run: |
-          $langDir = "$env:RUNNER_TEMP\InnoSetup\Languages"
-          mkdir $langDir -Force
+          # Windows runner has Inno Setup 6 pre-installed, just need Chinese ISL
+          $langDir = "${env:ProgramFiles(x86)}\Inno Setup 6\Languages"
           Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/ChineseSimplified.isl" -OutFile "$langDir\ChineseSimplified.isl"
 
       - name: Build installer
@@ -256,8 +247,8 @@ jobs:
   # ── GitHub Release (on tag push) ──
   release:
     needs: [build-windows, build-linux, build-macos]
+    if: always() && startsWith(github.ref, 'refs/tags/v') && !cancelled()
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     steps:
