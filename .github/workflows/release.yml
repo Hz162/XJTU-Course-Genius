@@ -4,12 +4,18 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build'
+        type: choice
+        options: [all, windows, linux, macos]
+        default: all
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # ── Go backend: cross-compile all 3 platforms ──
+  # ── Go backend: cross-compile only needed platforms ──
   build-backend:
     runs-on: ubuntu-latest
     strategy:
@@ -41,6 +47,7 @@ jobs:
 
   # ── Windows: Flutter build + zip + Inno Setup installer ──
   build-windows:
+    if: ${{ github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'windows' }}
     needs: build-backend
     runs-on: windows-latest
     steps:
@@ -71,7 +78,6 @@ jobs:
       - name: Download Chinese ISL for Inno Setup
         shell: pwsh
         run: |
-          # Windows runner has Inno Setup 6 pre-installed, just need Chinese ISL
           $langDir = "${env:ProgramFiles(x86)}\Inno Setup 6\Languages"
           Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/ChineseSimplified.isl" -OutFile "$langDir\ChineseSimplified.isl"
 
@@ -88,6 +94,7 @@ jobs:
 
   # ── Linux: Flutter build + .deb ──
   build-linux:
+    if: ${{ github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'linux' }}
     needs: build-backend
     runs-on: ubuntu-latest
     steps:
@@ -100,7 +107,7 @@ jobs:
 
       - run: |
           sudo apt-get update -qq
-          sudo apt-get install -y cmake pkg-config libgtk-3-dev imagemagick
+          sudo apt-get install -y cmake pkg-config libgtk-3-dev
 
       - uses: actions/download-artifact@v4
         with:
@@ -109,7 +116,6 @@ jobs:
 
       - run: chmod +x backend/xjtu-genius
 
-
       - name: Build Flutter
         run: cd frontend && flutter build linux --release
 
@@ -117,6 +123,7 @@ jobs:
         run: |
           VER="${{ github.ref_name }}"
           VER="${VER#v}"
+          if [ "$VER" = "refs/heads/main" ]; then VER="dev"; fi
           INSTALL_DIR="pkg/opt/xjtu-course-genius"
           mkdir -p "$INSTALL_DIR" pkg/DEBIAN
 
@@ -190,6 +197,7 @@ jobs:
 
   # ── macOS: Flutter build + .dmg ──
   build-macos:
+    if: ${{ github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'macos' }}
     needs: build-backend
     runs-on: macos-latest
     steps:
@@ -206,7 +214,6 @@ jobs:
           path: backend/
 
       - run: chmod +x backend/xjtu-genius
-
 
       - name: Build Flutter
         run: cd frontend && flutter build macos --release
@@ -229,7 +236,7 @@ jobs:
           name: XJTU-Course-Genius-macos
           path: XJTU-Course-Genius-macos.dmg
 
-  # ── GitHub Release (on tag push) ──
+  # ── GitHub Release (on tag push, runs even if some platforms fail) ──
   release:
     needs: [build-windows, build-linux, build-macos]
     if: always() && startsWith(github.ref, 'refs/tags/v') && !cancelled()
@@ -243,10 +250,11 @@ jobs:
           path: artifacts/
           merge-multiple: true
 
-      - name: Flatten artifacts
+      - name: Flatten and list artifacts
         run: |
           find artifacts -type f -exec mv {} ./ \;
           rm -rf artifacts
+          echo "=== Release assets ==="
           ls -lh
 
       - name: Create Release
@@ -254,8 +262,9 @@ jobs:
         with:
           files: |
             XJTU-Course-Genius-windows-x64.zip
-            **/XJTU-Course-Genius-Setup-v*.exe
+            XJTU-Course-Genius-Setup-v*.exe
             XJTU-Course-Genius-linux-x64.deb
+            XJTU-Course-Genius-linux-x64.tar.gz
             XJTU-Course-Genius-macos.dmg
           fail_on_unmatched_files: false
           generate_release_notes: true
