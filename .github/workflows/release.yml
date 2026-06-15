@@ -109,13 +109,6 @@ jobs:
 
       - run: chmod +x backend/xjtu-genius
 
-      - name: Generate icons from logo
-        run: |
-          for size in 48 64 128 256; do
-            mkdir -p "assets/linux_icons/${size}x${size}/apps"
-            convert assets/logo.png -resize "${size}x${size}" \
-              "assets/linux_icons/${size}x${size}/apps/xjtu-course-genius.png"
-          done
 
       - name: Build Flutter
         run: cd frontend && flutter build linux --release
@@ -214,14 +207,6 @@ jobs:
 
       - run: chmod +x backend/xjtu-genius
 
-      - name: Generate icons from logo
-        run: |
-          # Use sips (built-in macOS) to generate AppIcon PNGs
-          DST=frontend/macos/Runner/Assets.xcassets/AppIcon.appiconset
-          for size in 16 32 64 128 256 512 1024; do
-            cp assets/logo.png "$DST/app_icon_${size}.png"
-            sips -z $size $size "$DST/app_icon_${size}.png" > /dev/null
-          done
 
       - name: Build Flutter
         run: cd frontend && flutter build macos --release
